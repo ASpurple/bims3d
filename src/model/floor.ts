@@ -11,6 +11,8 @@ export class Floor extends CustomModel {
 	thickness = 1;
 	floorColor = "#666666";
 
+	render: () => void | null;
+
 	floor() {
 		const w = this.width;
 		const h = this.height;
@@ -32,6 +34,7 @@ export class Floor extends CustomModel {
 			mesh.position.set(0, -8, -(h / 2));
 			mesh.rotateX((90 / (180 * Math.PI)) * 10);
 			this.addStructure(mesh, "floor");
+			if (this.render) this.render();
 		});
 	}
 }

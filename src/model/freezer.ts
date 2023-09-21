@@ -20,6 +20,8 @@ export class FreezerModel extends CustomModel {
 	private doorColor = "#ffffff";
 	private tag?: string | number;
 
+	render: () => void | null;
+
 	frame() {
 		const origin = this.getOrigin();
 		const structure = this.drawRect(new Shape(), origin, this.width, this.height);
@@ -204,6 +206,7 @@ export class FreezerModel extends CustomModel {
 			mesh.rotateX(-1.58);
 			this.addStructure(mesh, "font");
 			this.circle();
+			if (this.render) this.render();
 		});
 	}
 }

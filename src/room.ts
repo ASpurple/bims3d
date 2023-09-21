@@ -95,6 +95,7 @@ export class Room {
 				let i = (c + r * row + 1).toString();
 				if (i.length == 1) i = "0" + i;
 				const f = new FreezerModel(i);
+				f.render = this.render;
 				f.userData.id = r + "-" + c;
 				f.userData.isFreezer = true;
 				f.position.set(X, y, Z);
@@ -104,6 +105,7 @@ export class Room {
 	}
 
 	init() {
+		this.floor.render = this.render;
 		const canvasWidth = this.renderer.domElement.width;
 		const canvasHeight = this.renderer.domElement.height;
 		this.cameraParams.aspect = canvasWidth / canvasHeight;

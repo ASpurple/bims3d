@@ -30,7 +30,7 @@ function render() {
 	const room = new Room(renderer);
 	room.addOrbitControl();
 
-	setTimeout(() => room.render(), 300);
+	room.render();
 
 	document.body.onmousedown = () => {
 		last = new Date().getTime();
