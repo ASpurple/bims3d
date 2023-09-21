@@ -2,7 +2,7 @@ import { ConfigEnv, defineConfig } from "vite";
 
 export default ({ mode }: ConfigEnv) => {
 	return defineConfig({
-		base: mode === "development" ? "" : "/assets/",
+		base: mode === "development" ? "" : "/bims3d/",
 		build: {
 			outDir: "./docs",
 		},
