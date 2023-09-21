@@ -88,13 +88,15 @@ export class Room {
 		const w = 10;
 		const d = 5;
 		const s = 12;
+		let i = 1;
 		for (let r = 0; r < row; r++) {
 			for (let c = 0; c < col; c++) {
 				const X = x + (w + s) * c;
 				const Z = z + (d + s) * r;
-				let i = (c + r * row + 1).toString();
-				if (i.length == 1) i = "0" + i;
-				const f = new FreezerModel(i);
+				let tag = i.toString();
+				if (tag.length == 1) tag = "0" + i;
+				i++;
+				const f = new FreezerModel(tag);
 				f.render = this.render;
 				f.userData.id = r + "-" + c;
 				f.userData.isFreezer = true;
