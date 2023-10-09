@@ -1,4 +1,4 @@
-import { Group, Material, Mesh, Object3D, Path, Shape } from "three";
+import { Group, Material, Mesh, Path, Shape } from "three";
 import { isTypedArray } from "three/src/animation/AnimationUtils";
 import { generateUUID } from "three/src/math/MathUtils";
 

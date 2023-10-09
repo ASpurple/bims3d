@@ -18,6 +18,7 @@ import { Floor } from "./model/floor";
 import { Tween, Easing } from "three/examples/jsm/libs/tween.module.js";
 import { appendStyle, createHTMLElement } from "zyc-real-dom";
 import { CustomModel } from "./model";
+import { TestShape } from "./test";
 
 export class Room {
 	constructor(renderer: WebGLRenderer) {
@@ -107,7 +108,6 @@ export class Room {
 	}
 
 	init() {
-		this.floor.render = this.render;
 		const canvasWidth = this.renderer.domElement.width;
 		const canvasHeight = this.renderer.domElement.height;
 		this.cameraParams.aspect = canvasWidth / canvasHeight;
@@ -115,9 +115,10 @@ export class Room {
 		this.createCamera();
 		this.createLight();
 		this.addFreezers();
-		this.scene.add(...this.light, ...this.freezers, this.floor);
-		// const axisHelper = new AxesHelper(25);
-		// this.scene.add(axisHelper);
+		// this.scene.add(...this.light, ...this.freezers, this.floor);
+		this.scene.add(new TestShape());
+		const axisHelper = new AxesHelper(25);
+		this.scene.add(axisHelper);
 	}
 
 	render = (e?: any) => {
