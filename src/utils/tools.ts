@@ -1,7 +1,19 @@
-import { DoubleSide, ExtrudeGeometry, Material, MathUtils, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, Path, Shape } from "three";
+import {
+	CylinderGeometry,
+	ExtrudeGeometry,
+	ExtrudeGeometryOptions,
+	Material,
+	MathUtils,
+	Mesh,
+	MeshBasicMaterial,
+	Path,
+	Shape,
+	SphereGeometry,
+} from "three";
 import { TextGeometry, TextGeometryParameters } from "three/examples/jsm/geometries/TextGeometry";
 import { Easing, Tween } from "three/examples/jsm/libs/tween.module";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader";
+import { metalnessMaterial } from "./material";
 
 export enum MaterialType {
 	MeshPhong,
@@ -11,17 +23,12 @@ export enum MaterialType {
 	MeshLambert,
 }
 
-export const SLIVER = "#FFF5EE";
-
-export function metalnessMaterial(color = SLIVER): Material {
-	return new MeshPhysicalMaterial({ color, metalness: 1, roughness: 0.5, side: DoubleSide });
-}
-
 export class RectMeshOption {
 	constructor(width: number, height: number, depth: number = 0.1) {
 		this.width = width;
 		this.height = height;
 		this.depth = depth;
+		this.extrudeOption = { steps: 2, depth: this.depth, bevelEnabled: false };
 	}
 	width: number;
 	height: number;
@@ -29,6 +36,12 @@ export class RectMeshOption {
 	origin = { x: 0, y: 0 }; // 源点
 	material: Material = metalnessMaterial(); // 材质
 	holes: Path[] = []; // 镂空部分
+	extrudeOption: ExtrudeGeometryOptions; // 拉伸配置
+
+	// 修改拉伸配置
+	setExtrudeOption(option: Partial<ExtrudeGeometryOptions>) {
+		this.extrudeOption = { ...this.extrudeOption, ...option };
+	}
 }
 
 // 角度转弧度
@@ -73,11 +86,17 @@ export class Tools {
 	}
 
 	// 绘制网格对象，默认银色金属材质
-	static shapeMesh(drawer: (shape: Shape) => void, holes: Path[] = [], depth = 0.1, material: Material = metalnessMaterial()): Mesh {
+	static shapeMesh(
+		drawer: (shape: Shape) => void,
+		holes: Path[] = [],
+		extraExtrudeOption: Partial<ExtrudeGeometryOptions> = {},
+		material: Material = metalnessMaterial()
+	): Mesh {
+		const extrudeOption = { steps: 2, depth: 0.1, bevelEnabled: false, ...extraExtrudeOption };
 		const shape = new Shape();
 		drawer(shape);
 		shape.holes.push(...holes);
-		const geometry = new ExtrudeGeometry(shape, { steps: 2, depth, bevelEnabled: false });
+		const geometry = new ExtrudeGeometry(shape, extrudeOption);
 		const mesh = new Mesh(geometry, material);
 		return mesh;
 	}
@@ -86,7 +105,7 @@ export class Tools {
 	static rectMesh(option: RectMeshOption): Mesh {
 		const shape = Tools.drawRect(new Shape(), option.origin, option.width, option.height);
 		shape.holes.push(...option.holes);
-		const geometry = new ExtrudeGeometry(shape, { steps: 2, depth: option.depth, bevelEnabled: false });
+		const geometry = new ExtrudeGeometry(shape, option.extrudeOption);
 		const mesh = new Mesh(geometry, option.material);
 		return mesh;
 	}
@@ -111,5 +130,27 @@ export class Tools {
 				resolve(mesh);
 			});
 		});
+	}
+
+	static ballMesh(radius: number, material: Material = metalnessMaterial()) {
+		const geometry = new SphereGeometry(radius, 32, 16);
+		const sphere = new Mesh(geometry, material);
+		return sphere;
+	}
+
+	static cylinderMesh(
+		radiusTop: number,
+		radiusBottom: number,
+		height: number,
+		openEnded = false,
+		thetaStart = 0, // 第一段起始角度
+		thetaLength = Math.PI * 2, // 扇形弧度，默认为一个完整得圆
+		material: Material = metalnessMaterial()
+	) {
+		const radialSegments = 32;
+		const heightSegments = 1;
+		const geometry = new CylinderGeometry(radiusTop, radiusBottom, height, radialSegments, heightSegments, openEnded, thetaStart, thetaLength);
+		const cylinder = new Mesh(geometry, material);
+		return cylinder;
 	}
 }

@@ -1,7 +1,8 @@
 import { MeshStandardMaterial } from "three";
 import { mainScene } from "../scene";
-import { RectMeshOption, SLIVER, Tools, deg2rad } from "../utils/tools";
+import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
 import { CustomModel } from "./custom_model";
+import { SLIVER } from "../utils/material";
 
 export class Rack extends CustomModel {
 	constructor() {

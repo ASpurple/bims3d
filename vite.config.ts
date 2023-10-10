@@ -6,5 +6,8 @@ export default ({ mode }: ConfigEnv) => {
 		build: {
 			outDir: "./docs",
 		},
+		server: {
+			port: 3000,
+		},
 	});
 };
