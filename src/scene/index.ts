@@ -23,15 +23,21 @@ export interface Position3 {
 	z: number;
 }
 
+export type EventTarget = Intersection<Object3D>;
+
+type EventType = "click" | "mouseover";
+
 export class Listener {
-	constructor(key: string | number, models: Object3D[], handler: (targets: Intersection<Object3D>[]) => void) {
-		this.key = key;
-		this.models = models;
+	constructor(type: EventType, model: Object3D, handler: (target: EventTarget, targets?: EventTarget[]) => void) {
+		this.key = model.uuid;
+		this.type = type;
+		this.model = model;
 		this.handler = handler;
 	}
-	key: string | number;
-	models: Object3D[];
-	handler: (targets: Intersection<Object3D>[]) => void;
+	key: string;
+	type: EventType;
+	model: Object3D;
+	handler: (target: Intersection<Object3D>, targets?: EventTarget[]) => void;
 }
 
 // 默认场景
@@ -164,6 +170,7 @@ class DefaultScene {
 		this.renderer.render(this.scene, this.camera);
 	};
 
+	// 移动相机
 	moveCameraTo(position: Position3, lookAt: Position3): Promise<void> {
 		return new Promise((resolve) => {
 			const p = this.camera.position;
@@ -184,6 +191,11 @@ class DefaultScene {
 		});
 	}
 
+	// 重置相机位置
+	resetCamera() {
+		return this.moveCameraTo(this.cameraPosition0, this.cameraLookAt);
+	}
+
 	private onCanvasClick = () => {
 		if (!this.canvas) return;
 		this.canvas.onmousedown = () => {
@@ -194,32 +206,45 @@ class DefaultScene {
 			const now = new Date().getTime();
 			const diff = now - this.lastMouseDown;
 			if (diff > 200) return;
-			this.clickHandler(e);
+			this.eventHandler("click", e);
 		};
 	};
 
-	private clickHandler = (event: MouseEvent) => {
+	private isInclude(target: Object3D, listenerModel: Object3D): boolean {
+		if (target.uuid === listenerModel.uuid) return true;
+		const parent = target.parent;
+		if (!parent) return false;
+		return this.isInclude(parent, listenerModel);
+	}
+
+	private eventHandler = (type: EventType, event: MouseEvent) => {
 		const raycaster = new Raycaster();
 		this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
 		this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 		raycaster.setFromCamera(this.mouse, this.camera);
 		const intersects = raycaster.intersectObjects(this.listenerModels);
 		if (!intersects.length) return;
+		const target = intersects[0];
 		this.listeners.forEach((lis) => {
-			lis.handler(intersects);
+			if (lis.type != type || !this.isInclude(target.object, lis.model)) return;
+			lis.handler(target, intersects);
 		});
 	};
 
 	private syncListenerModels() {
 		const models: Object3D[] = [];
 		this.listeners.forEach((lis) => {
-			models.push(...lis.models);
+			models.push(lis.model);
 		});
 		this.listenerModels = models;
 	}
 
+	private sameListener(l1: Listener, l2: Listener): boolean {
+		return l1 == l2 || l1.handler == l2.handler || l1.model == l2.model;
+	}
+
 	addEventListener(listener: Listener) {
-		const i = this.listeners.findIndex((lis) => lis.key === listener.key);
+		const i = this.listeners.findIndex((lis) => lis.key == listener.key && lis.type == listener.type);
 		if (i >= 0) {
 			this.listeners[i] = listener;
 		} else {
@@ -228,8 +253,22 @@ class DefaultScene {
 		this.syncListenerModels();
 	}
 
-	removeEventListener(key: string | number) {
-		this.listeners = this.listeners.filter((lis) => lis.key !== key);
+	removeModelEvent(model: Object3D, eventType?: EventType) {
+		this.listeners = this.listeners.filter((lis) => {
+			const same = lis.key !== model.uuid;
+			if (!eventType) return same;
+			return same && lis.type === eventType;
+		});
+	}
+
+	removeEventListener(listener: Listener | Function | string) {
+		if (typeof listener == "function") {
+			this.listeners = this.listeners.filter((lis) => lis.handler !== listener);
+		} else if (typeof listener == "string") {
+			this.listeners = this.listeners.filter((lis) => lis.key !== listener);
+		} else {
+			this.listeners = this.listeners.filter((lis) => !this.sameListener(lis, listener));
+		}
 		this.syncListenerModels();
 	}
 }

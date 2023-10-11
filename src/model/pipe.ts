@@ -1,6 +1,6 @@
 /* 冻存管模型 */
 
-import { MeshLambertMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Path } from "three";
+import { MeshLambertMaterial, MeshPhysicalMaterial } from "three";
 import { pipeSize } from "../store/size";
 import { Tools } from "../utils/tools";
 import { CustomModel } from "./custom_model";
@@ -10,15 +10,21 @@ export class PipeModel extends CustomModel {
 	constructor(color?: string) {
 		super();
 		if (color) this.color = color;
-		this.setName("pipe");
+		this.setName(PipeModel.modelName);
 		this.render();
 	}
+
+	static readonly modelName = "pipe";
 
 	color = "#0072be"; //盖子颜色
 	radius = pipeSize.pipeRadius;
 	lidHeight = pipeSize.pipeRadius * 2;
 	containerHeight = pipeSize.pipeHeight - this.lidHeight;
 	bottomRightHeight = this.radius / 4;
+	lid: CustomModel;
+
+	row = 1; // 在冻存架中的行
+	col = 1; // 在冻存架中的列
 
 	lidBlackBottom() {
 		const r = this.radius;
@@ -29,7 +35,7 @@ export class PipeModel extends CustomModel {
 		return ring;
 	}
 
-	lid() {
+	createLid() {
 		const lidContainer = new CustomModel();
 		const r = this.radius;
 		const material = new MeshLambertMaterial({ color: this.color });
@@ -61,7 +67,8 @@ export class PipeModel extends CustomModel {
 	}
 
 	render() {
-		this.add(this.lid());
+		this.lid = this.createLid();
+		this.addNamedModel(this.lid, { name: "pipe_lid" });
 		this.add(this.container());
 	}
 }

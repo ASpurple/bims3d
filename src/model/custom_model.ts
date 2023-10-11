@@ -1,6 +1,6 @@
-import { Group, Material, Mesh, Path, Shape } from "three";
+import { Group, Material, Mesh, Object3D, Path, Shape } from "three";
 import { isTypedArray } from "three/src/animation/AnimationUtils";
-import { generateUUID } from "three/src/math/MathUtils";
+import { mainScene } from "../scene";
 
 type Model = Mesh | CustomModel | Group;
 
@@ -11,15 +11,13 @@ enum ModelType {
 }
 
 export class CustomModel extends Group {
-	constructor(groupId?: string, name?: string) {
+	constructor(name?: string) {
 		super();
-		this.groupId = groupId ?? generateUUID();
-		this.userData.name = name ?? "";
+		CustomModel.setCustomModelName(this, name ?? "");
 	}
 
 	private _origin = { x: 0, y: 0, z: 0 };
 	private _models: Model[] = [];
-	readonly groupId: string;
 	readonly isCustomModel: boolean = true;
 
 	// 获取网格模型的材质列表
@@ -40,25 +38,21 @@ export class CustomModel extends Group {
 		return ModelType.Mesh;
 	}
 
-	// 获取自定义的模型分组Id
-	static getCustomModelGroupId(model: Model): string | null {
-		return (model as CustomModel).groupId || (model.userData["groupId"] ?? null);
-	}
-
-	// 设置自定义的模型分组Id
-	static setCustomModelGroupId(model: Model, groupId: string) {
-		if ((model as CustomModel).isCustomModel) return;
-		model.userData["groupId"] = groupId;
-	}
-
 	// 获取自定义的模型名称
-	static getCustomModelName(model: Model): string | null {
-		return model.userData["name"] ?? null;
+	static getCustomModelName(model: Model): string {
+		return model.userData["name"] ?? "";
 	}
 
 	// 设置自定义的模型名称
 	static setCustomModelName(model: Model, name: string) {
 		model.userData["name"] = name;
+	}
+
+	// 查找指定名称的父级
+	static findNamedParent(target: any, name: string): Object3D | null {
+		if (target && target.userData && target.userData.name === name) return target;
+		if (!target.parent) return null;
+		return CustomModel.findNamedParent(target.parent, name);
 	}
 
 	get models() {
@@ -79,6 +73,14 @@ export class CustomModel extends Group {
 
 	setName(name: string) {
 		CustomModel.setCustomModelName(this, name);
+	}
+
+	setField(field: string, value: any) {
+		this.userData[field] = value;
+	}
+
+	getField(field: string): any {
+		return this.userData[field];
 	}
 
 	// 遍历当前模型的子模型，如果 callback 返回 true， 则停止遍历
@@ -109,18 +111,15 @@ export class CustomModel extends Group {
 		return result;
 	}
 
-	// 添加子模型
-	addChildModel(model: Model, name: string) {
-		if (!CustomModel.getCustomModelGroupId(model)) {
-			CustomModel.setCustomModelGroupId(model, this.groupId);
-		}
-		CustomModel.setCustomModelName(model, name);
+	// 添加指定名称的子模型
+	addNamedModel(model: Model, option: { name: string }) {
+		if (option.name) CustomModel.setCustomModelName(model, option.name);
 		this._models.push(model);
 		this.add(model);
 	}
 
 	// 删除子模型
-	removeChildModel(name: string) {
+	removeChildModelByName(name: string) {
 		if (!name) return;
 		const target = this._models.find((model) => CustomModel.getCustomModelName(model) === name);
 		const list = this._models.filter((model) => CustomModel.getCustomModelName(model) !== name);
@@ -137,7 +136,7 @@ export class CustomModel extends Group {
 				const parent = (model as Group).parent as CustomModel;
 				if (parent) {
 					if (CustomModel.getModelType(parent) === ModelType.CustomModel) {
-						parent.removeChildModel(name);
+						parent.removeChildModelByName(name);
 					} else {
 						parent.remove(model);
 					}
@@ -168,4 +167,34 @@ export class CustomModel extends Group {
 		}
 		return children;
 	};
+
+	// 聚焦模型左侧45°角位置	(默认模型的 左下内 点为源点)
+	focusLeft45(width: number, height: number, depth: number, distance = 3) {
+		const p0 = this.position;
+		const w = width;
+		const h = height;
+		const d = depth;
+		const lookAt = { x: p0.x + w / 2, y: p0.y + h / 2, z: p0.z + d / 2 };
+		return mainScene.moveCameraTo({ x: p0.x - w * distance, y: p0.y + h * distance, z: p0.z + d * distance }, lookAt);
+	}
+
+	// 聚焦模型右侧45°角位置	(默认模型的 左下内 点为源点)
+	focusRight45(width: number, height: number, depth: number, distance = 3) {
+		const p0 = this.position;
+		const w = width;
+		const h = height;
+		const d = depth;
+		const lookAt = { x: p0.x + w / 2, y: p0.y + h / 2, z: p0.z + d / 2 };
+		return mainScene.moveCameraTo({ x: p0.x + w * distance, y: p0.y + h * distance, z: p0.z + d * distance }, lookAt);
+	}
+
+	// 聚焦模型正前方位置	(默认模型的 左下内 点为源点)
+	focusAhead(width: number, height: number, depth: number, distance = 3) {
+		const p0 = this.position;
+		const w = width;
+		const h = height;
+		const d = depth;
+		const lookAt = { x: p0.x + w / 2, y: p0.y + h / 2, z: p0.z + d / 2 };
+		return mainScene.moveCameraTo({ x: p0.x + w / 2, y: p0.y + h * distance, z: p0.z + d * distance }, lookAt);
+	}
 }

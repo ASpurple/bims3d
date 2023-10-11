@@ -1,6 +1,6 @@
 import { appendStyle, createHTMLElement } from "zyc-real-dom";
 
-appendStyle("button", { width: "100px", height: "32px", cursor: "pointer", position: "absolute" });
+appendStyle("canvas", { cursor: "pointer" });
 
 export function createButton(label: string, handler: (e: MouseEvent) => void) {
 	const button = createHTMLElement("button", {}, {});

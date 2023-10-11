@@ -1,10 +1,11 @@
-import { CylinderGeometry, Mesh, Path, TorusGeometry } from "three";
+import { CylinderGeometry, Mesh, Object3D, Path, TorusGeometry } from "three";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
 import { CustomModel } from "./custom_model";
 import { metalnessMaterial } from "../utils/material";
-import { SubRackSize } from "../store/size";
+import { SubRackSize, pipeSize } from "../store/size";
 import { PipeModel } from "./pipe";
-import { mainScene } from "../scene";
+import { EventTarget, Listener, mainScene } from "../scene";
+import { PipePanel } from "../html/pipe_panel";
 
 export interface PipePosition {
 	row: number;
@@ -17,9 +18,11 @@ export class SubRack extends CustomModel {
 		this.row = row;
 		this.col = col;
 		this.initSize();
-		this.setName("sub_rack");
+		this.setName(SubRack.modelName);
 		this.render();
 	}
+
+	static readonly modelName = "sub_rack";
 
 	row = 0; // 冻存管行数
 	col = 0; // 冻存管列数
@@ -33,9 +36,16 @@ export class SubRack extends CustomModel {
 	holeRadius = 0;
 	thickness = 0.1;
 
-	pipes: PipePosition[] = []; // 冻存管
+	level = 1; // 在冻存架的第几层（1 base）
 
-	initSize() {
+	private pipes: PipeModel[] = []; // 冻存管
+
+	private activePipe: PipeModel | null = null;
+	private infoPanel: PipePanel | null = null;
+
+	doorModel: Object3D; // 门把手
+
+	private initSize() {
 		const size = new SubRackSize(this.row, this.col);
 		this.rowSpace = size.rowSpace;
 		this.colSpace = size.colSpace;
@@ -46,7 +56,7 @@ export class SubRack extends CustomModel {
 		this.holeRadius = size.holeRadius;
 	}
 
-	floor() {
+	private floor() {
 		const p = Tools.rectMesh(new RectMeshOption(this.width, this.depth));
 		const c1 = Tools.rectMesh(new RectMeshOption(this.fh, this.depth));
 		const c2 = Tools.rectMesh(new RectMeshOption(this.fh, this.depth));
@@ -61,7 +71,7 @@ export class SubRack extends CustomModel {
 		return [p, c1, c2, c3];
 	}
 
-	verticalMesh() {
+	private verticalMesh() {
 		const w = this.fh;
 		const h = this.height;
 		const mesh = Tools.shapeMesh((shape) => {
@@ -75,7 +85,7 @@ export class SubRack extends CustomModel {
 		return mesh;
 	}
 
-	vertical() {
+	private vertical() {
 		const v1 = this.verticalMesh();
 		const v2 = this.verticalMesh();
 		const v3 = this.verticalMesh();
@@ -94,7 +104,7 @@ export class SubRack extends CustomModel {
 		return [v1, v2, v3, v4];
 	}
 
-	topPoleModel() {
+	private topPoleModel() {
 		const w = this.depth;
 		const h = this.fh;
 		const mesh = Tools.shapeMesh((shape) => {
@@ -108,7 +118,7 @@ export class SubRack extends CustomModel {
 		return mesh;
 	}
 
-	topPole() {
+	private topPole() {
 		const p1 = this.topPoleModel();
 		const p2 = this.topPoleModel();
 		p1.translateY(this.height - this.fh);
@@ -120,7 +130,7 @@ export class SubRack extends CustomModel {
 		return [p1, p2];
 	}
 
-	midPole() {
+	private midPole() {
 		const w = this.depth;
 		const h = this.fh;
 		const p1 = Tools.rectMesh(new RectMeshOption(w, h));
@@ -134,7 +144,7 @@ export class SubRack extends CustomModel {
 		return [p1, p2];
 	}
 
-	piercedPanel() {
+	private piercedPanel() {
 		const w = this.depth;
 		const h = this.width;
 		const option = new RectMeshOption(w, h);
@@ -167,11 +177,11 @@ export class SubRack extends CustomModel {
 		return [p1, p2];
 	}
 
-	doorPanel() {
+	private doorPanel() {
 		const w = this.width / 2;
 		const h = this.height / 2;
 		const t = this.thickness * 0.7;
-		const r = this.holeRadius; // 中间圆环半径
+		const r = t * 3; // 中间圆环半径
 		const path = new Path().arc(t, h / 2, r - t, Math.PI / 2, -Math.PI / 2, true);
 		const mesh = Tools.shapeMesh(
 			(shape) => {
@@ -202,20 +212,23 @@ export class SubRack extends CustomModel {
 		return [mesh, tab];
 	}
 
-	door() {
+	private door() {
+		const model = new CustomModel();
 		const p = Tools.rectMesh(new RectMeshOption(this.width, this.height));
 		p.translateZ(this.depth);
-		return [p, ...this.doorPanel()];
+		model.add(p, ...this.doorPanel());
+		this.doorModel = model;
+		return model;
 	}
 
-	render() {
+	private render() {
 		const container = new CustomModel();
 		container.add(...this.floor());
 		container.add(...this.vertical());
 		container.add(...this.topPole());
 		container.add(...this.midPole());
 		container.add(...this.piercedPanel());
-		container.add(...this.door());
+		container.add(this.door());
 		this.add(container);
 	}
 
@@ -240,24 +253,96 @@ export class SubRack extends CustomModel {
 		return "pipe" + "-" + row + "-" + col;
 	}
 
+	// 显示冻存管信息面板
+	private showPipePanel(pipe: PipeModel) {
+		this.infoPanel = new PipePanel(
+			pipe,
+			() => this.insert(pipe),
+			() => this.deletePipe(pipe)
+		);
+		this.infoPanel.show();
+	}
+
+	// 删除当前冻存管信息面板
+	private removePipePanel() {
+		if (!this.infoPanel) return;
+		this.infoPanel.destroy();
+	}
+
+	// 冻存管抽出后位置
+	outPosition = () => {
+		return this.thickness + pipeSize.pipeHeight;
+	};
+
+	// 冻存管插入后位置
+	innerPosition = () => {
+		return this.thickness;
+	};
+
+	// 塞入冻存架
+	insert = (pipe: PipeModel) => {
+		if (this.activePipe && this.activePipe.uuid == pipe.uuid) {
+			this.activePipe = null;
+			this.removePipePanel();
+		}
+		const y = this.outPosition();
+		Tools.animate({ top: y }, { top: this.innerPosition() }, ({ top }) => {
+			pipe.position.setY(top);
+			mainScene.render();
+		}).then(() => {
+			pipe.setField("inserted", true);
+		});
+	};
+
+	// 从冻存架抽出
+	drawOut(pipe: PipeModel) {
+		if (this.activePipe) this.insert(this.activePipe);
+		this.showPipePanel(pipe);
+		const y = this.innerPosition();
+		const t = this.outPosition();
+		Tools.animate({ top: y }, { top: t }, ({ top }) => {
+			pipe.position.setY(top);
+			mainScene.render();
+		}).then(() => {
+			pipe.setField("inserted", false);
+			this.activePipe = pipe;
+		});
+	}
+
+	// 冻存管点击事件
+	private onPipeClick = (target: EventTarget) => {
+		const pipe = CustomModel.findNamedParent(target.object, PipeModel.modelName) as PipeModel;
+		if (pipe.getField("inserted")) {
+			this.drawOut(pipe as PipeModel);
+		} else {
+			this.insert(pipe as PipeModel);
+		}
+	};
+
 	// 添加冻存管 （初始位置为 1，1）
 	addPipe(row: number, col: number, pipe?: PipeModel): boolean {
 		row--;
 		col--;
 		if (row < 0 || col < 0 || row > this.row || col > this.col) return false;
 		pipe = pipe ?? new PipeModel();
+		pipe.row = row;
+		pipe.col = col;
 		const offset = this.pipeOffset(row, col);
 		if (this.pipeExists(row, col)) return false;
-		this.pipes.push({ row, col });
+		this.pipes.push(pipe);
 		const { x, z } = offset;
+		const y = this.thickness + pipeSize.pipeHeight;
 		pipe.translateX(x);
-		pipe.translateY(this.thickness);
+		pipe.translateY(y);
 		pipe.translateZ(z);
-		this.addChildModel(pipe, this.pipeName(row, col));
-		mainScene.render();
+		this.add(pipe);
+		// 冻存管盖子添加点击事件
+		mainScene.addEventListener(new Listener("click", pipe.lid, this.onPipeClick));
+		this.insert(pipe);
 		return true;
 	}
 
+	// 寻找空位置
 	findFreePosition(): { row: number; col: number } | null {
 		for (let r = 0; r < this.row; r++) {
 			for (let c = 0; c < this.col; c++) {
@@ -267,6 +352,7 @@ export class SubRack extends CustomModel {
 		return null;
 	}
 
+	// 在任意空位插入冻存管
 	addPipeAnyWhere(pipe?: PipeModel): boolean {
 		if (this.pipes.length >= this.row * this.col) return false;
 		pipe = pipe ?? new PipeModel();
@@ -274,6 +360,16 @@ export class SubRack extends CustomModel {
 		if (!free) return false;
 		return this.addPipe(free.row, free.col, pipe);
 	}
+
+	// 删除冻存管
+	deletePipe = (pipe: PipeModel) => {
+		mainScene.removeModelEvent(pipe.lid);
+		this.remove(pipe);
+		this.activePipe = null;
+		if (this.infoPanel) this.infoPanel.destroy();
+		this.pipes = this.pipes.filter((p) => p.uuid != pipe.uuid);
+		mainScene.render();
+	};
 }
 
 // 冻存架拉环

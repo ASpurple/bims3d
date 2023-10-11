@@ -6,6 +6,7 @@ import { mainScene } from "../scene";
 export class Floor extends CustomModel {
 	constructor() {
 		super();
+		this.setName("floor");
 		this.floor();
 	}
 	private width = 100;
@@ -33,7 +34,7 @@ export class Floor extends CustomModel {
 			const mesh = new Mesh(geometry, material);
 			mesh.position.set(0, -8, -(h / 2));
 			mesh.rotateX((90 / (180 * Math.PI)) * 10);
-			this.addChildModel(mesh, "floor");
+			this.add(mesh);
 			mainScene.render();
 		});
 	}

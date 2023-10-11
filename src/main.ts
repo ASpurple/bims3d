@@ -9,10 +9,6 @@ mainScene.render();
 
 mainScene.add(new Floor());
 
-const subRack = new SubRack();
-addPipeButton(subRack);
-mainScene.add(subRack);
-
-// mainScene.add(new Rack());
-
-// mainScene.add(new PipeModel());
+const rack = new Rack();
+mainScene.add(rack);
+rack.showOperationPanel();
