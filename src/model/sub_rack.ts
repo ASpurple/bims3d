@@ -36,7 +36,7 @@ export class SubRack extends CustomModel {
 	holeRadius = 0;
 	thickness = 0.1;
 
-	level = 1; // 在冻存架的第几层（1 base）
+	level = 1; // 在冻存架(父级)的第几层（1 base）
 
 	private pipes: PipeModel[] = []; // 冻存管
 
@@ -232,6 +232,10 @@ export class SubRack extends CustomModel {
 		this.add(container);
 	}
 
+	getPipes() {
+		return this.pipes;
+	}
+
 	// 根据行和列计算冻存管偏移位置
 	private pipeOffset(row: number, col: number) {
 		const x = this.colSpace + this.holeRadius + col * (this.holeRadius * 2 + this.colSpace);
@@ -248,74 +252,79 @@ export class SubRack extends CustomModel {
 		return false;
 	}
 
-	// 根据行列号生成冻存管模型名称（唯一）
-	pipeName(row: number, col: number) {
-		return "pipe" + "-" + row + "-" + col;
-	}
-
 	// 显示冻存管信息面板
-	private showPipePanel(pipe: PipeModel) {
+	showPipePanel(pipe: PipeModel) {
 		this.infoPanel = new PipePanel(
 			pipe,
-			() => this.insert(pipe),
+			() => this.closePipe(),
 			() => this.deletePipe(pipe)
 		);
 		this.infoPanel.show();
 	}
 
 	// 删除当前冻存管信息面板
-	private removePipePanel() {
+	removePipePanel() {
 		if (!this.infoPanel) return;
 		this.infoPanel.destroy();
 	}
 
 	// 冻存管抽出后位置
-	outPosition = () => {
+	get outPosition() {
 		return this.thickness + pipeSize.pipeHeight;
-	};
+	}
 
 	// 冻存管插入后位置
-	innerPosition = () => {
+	get innerPosition() {
 		return this.thickness;
-	};
+	}
 
-	// 塞入冻存架
+	// 冻存管塞入冻存架
 	insert = (pipe: PipeModel) => {
-		if (this.activePipe && this.activePipe.uuid == pipe.uuid) {
-			this.activePipe = null;
-			this.removePipePanel();
-		}
-		const y = this.outPosition();
-		Tools.animate({ top: y }, { top: this.innerPosition() }, ({ top }) => {
+		const y = this.outPosition;
+		Tools.animate({ top: y }, { top: this.innerPosition }, ({ top }) => {
 			pipe.position.setY(top);
 			mainScene.render();
-		}).then(() => {
-			pipe.setField("inserted", true);
 		});
 	};
 
-	// 从冻存架抽出
+	// 从冻存架抽出冻存管
 	drawOut(pipe: PipeModel) {
-		if (this.activePipe) this.insert(this.activePipe);
-		this.showPipePanel(pipe);
-		const y = this.innerPosition();
-		const t = this.outPosition();
+		const y = this.innerPosition;
+		const t = this.outPosition;
 		Tools.animate({ top: y }, { top: t }, ({ top }) => {
 			pipe.position.setY(top);
 			mainScene.render();
-		}).then(() => {
-			pipe.setField("inserted", false);
-			this.activePipe = pipe;
 		});
 	}
 
+	// 选中冻存管
+	selectPipe = (pipe: PipeModel) => {
+		if (this.activePipe) this.closePipe();
+		pipe.selected = true;
+		this.activePipe = pipe;
+		this.drawOut(pipe);
+		this.showPipePanel(pipe);
+	};
+
+	// 关闭冻存管
+	closePipe = () => {
+		if (!this.activePipe) return;
+		this.activePipe.selected = false;
+		const pipe = this.activePipe;
+		this.activePipe = null;
+		this.insert(pipe);
+		this.removePipePanel();
+	};
+
 	// 冻存管点击事件
 	private onPipeClick = (target: EventTarget) => {
+		if (!this.selected) return;
 		const pipe = CustomModel.findNamedParent(target.object, PipeModel.modelName) as PipeModel;
-		if (pipe.getField("inserted")) {
-			this.drawOut(pipe as PipeModel);
+		const isActived = this.activePipe && this.activePipe.uuid === pipe.uuid;
+		if (isActived) {
+			this.closePipe();
 		} else {
-			this.insert(pipe as PipeModel);
+			this.selectPipe(pipe);
 		}
 	};
 
@@ -355,7 +364,7 @@ export class SubRack extends CustomModel {
 	// 在任意空位插入冻存管
 	addPipeAnyWhere(pipe?: PipeModel): boolean {
 		if (this.pipes.length >= this.row * this.col) return false;
-		pipe = pipe ?? new PipeModel();
+		pipe = pipe ?? new PipeModel(this.level == 1 ? "#ff5a5d" : undefined);
 		const free = this.findFreePosition();
 		if (!free) return false;
 		return this.addPipe(free.row, free.col, pipe);
@@ -363,10 +372,9 @@ export class SubRack extends CustomModel {
 
 	// 删除冻存管
 	deletePipe = (pipe: PipeModel) => {
-		mainScene.removeModelEvent(pipe.lid);
+		mainScene.removeModelEvent(pipe.lid); // 解除事件绑定
 		this.remove(pipe);
-		this.activePipe = null;
-		if (this.infoPanel) this.infoPanel.destroy();
+		if (this.activePipe && this.activePipe.uuid === pipe.uuid) this.closePipe();
 		this.pipes = this.pipes.filter((p) => p.uuid != pipe.uuid);
 		mainScene.render();
 	};

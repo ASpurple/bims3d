@@ -8,16 +8,16 @@ export class PipePanel extends Panel {
 		this.render();
 		this.addButtonGroup([
 			{ label: "放回", onClick: onInsert },
-			{ label: "丢弃", onClick: onDrop, danger: true },
+			{ label: "移除", onClick: onDrop, danger: true },
 		]);
+		this.setPosition({ top: 286, right: 137 });
 	}
 
 	pipe: PipeModel;
 
 	showInfo() {
-		this.showField("行", this.pipe.row);
-		this.showField("列", this.pipe.col);
-		this.showField("ID", this.pipe.uuid);
+		this.showField("所在行", this.pipe.row + 1);
+		this.showField("所在列", this.pipe.col + 1);
 	}
 
 	private render() {

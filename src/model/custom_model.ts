@@ -16,9 +16,9 @@ export class CustomModel extends Group {
 		CustomModel.setCustomModelName(this, name ?? "");
 	}
 
-	private _origin = { x: 0, y: 0, z: 0 };
-	private _models: Model[] = [];
 	readonly isCustomModel: boolean = true;
+
+	selected = false; // 在父级中的选中状态
 
 	// 获取网格模型的材质列表
 	static getMeshMaterials(mesh: Mesh) {
@@ -55,30 +55,20 @@ export class CustomModel extends Group {
 		return CustomModel.findNamedParent(target.parent, name);
 	}
 
-	get models() {
-		return this._models;
-	}
-
-	set models(list: Model[]) {
-		this._models = list;
-	}
-
-	get origin() {
-		return this._origin;
-	}
-
-	set origin(ori: typeof this._origin) {
-		this._origin = ori;
-	}
-
 	setName(name: string) {
 		CustomModel.setCustomModelName(this, name);
 	}
 
+	getName() {
+		return CustomModel.getCustomModelName(this);
+	}
+
+	// 写入自定义字段
 	setField(field: string, value: any) {
 		this.userData[field] = value;
 	}
 
+	// 读取自定义字段
 	getField(field: string): any {
 		return this.userData[field];
 	}
@@ -114,43 +104,7 @@ export class CustomModel extends Group {
 	// 添加指定名称的子模型
 	addNamedModel(model: Model, option: { name: string }) {
 		if (option.name) CustomModel.setCustomModelName(model, option.name);
-		this._models.push(model);
 		this.add(model);
-	}
-
-	// 删除子模型
-	removeChildModelByName(name: string) {
-		if (!name) return;
-		const target = this._models.find((model) => CustomModel.getCustomModelName(model) === name);
-		const list = this._models.filter((model) => CustomModel.getCustomModelName(model) !== name);
-		if (!target) return;
-		this.models = list;
-		this.remove(target);
-	}
-
-	// 删除子模型(深度遍历)
-	removeChildModelDeep(name: string) {
-		if (!name) return;
-		this.recursionChildModel(this.children as Model[], (model: Model) => {
-			if (CustomModel.getCustomModelName(model) === name) {
-				const parent = (model as Group).parent as CustomModel;
-				if (parent) {
-					if (CustomModel.getModelType(parent) === ModelType.CustomModel) {
-						parent.removeChildModelByName(name);
-					} else {
-						parent.remove(model);
-					}
-				}
-				return true;
-			}
-			return false;
-		});
-	}
-
-	// 清除子模型
-	clearChildModels() {
-		this.clear();
-		this.models = [];
 	}
 
 	// 获取所有网格对象

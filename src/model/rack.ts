@@ -252,18 +252,19 @@ export class Rack extends CustomModel {
 	private onSubRackClick = (target: EventTarget) => {
 		const sub = CustomModel.findNamedParent(target.object, SubRack.modelName) as SubRack;
 		const isActived = this.activeSubRack && this.activeSubRack.uuid === sub.uuid;
-		if (this.activeSubRack && !isActived) this.closeSubRack();
 		this.focusAhead(this.width, this.height, this.depth, 4).then(() => {
-			if (!isActived) {
-				this.selectSubRack(sub);
-			} else {
+			if (isActived) {
 				this.closeSubRack();
+			} else {
+				this.selectSubRack(sub);
 			}
 		});
 	};
 
 	// 选中子冻存架
 	selectSubRack = (subRack: SubRack) => {
+		if (this.activeSubRack) this.closeSubRack();
+		subRack.selected = true;
 		this.activeSubRack = subRack;
 		this.drawOutSubRack(subRack);
 		this.showSubRackoperationPanel(subRack);
@@ -273,6 +274,7 @@ export class Rack extends CustomModel {
 	// 关闭子冻存架
 	closeSubRack = () => {
 		if (!this.activeSubRack) return;
+		this.activeSubRack.selected = false;
 		this.insertSubRack(this.activeSubRack);
 		this.activeSubRack = null;
 		this.closeSubRackoperationPanel();
@@ -298,10 +300,14 @@ export class Rack extends CustomModel {
 	// 删除子冻存架
 	removeSubRack = (sub: SubRack) => {
 		mainScene.removeModelEvent(sub.doorModel);
+		sub.getPipes().forEach((p) => {
+			mainScene.removeModelEvent(p.lid);
+		});
 		this.remove(sub);
 		this.activeSubRack = null;
 		if (this.subRackoperationPanel) this.subRackoperationPanel.destroy();
 		this.subRacks = this.subRacks.filter((s) => s.uuid != sub.uuid);
 		mainScene.render();
+		this.showOperationPanel();
 	};
 }

@@ -118,6 +118,14 @@ export class Panel {
 		this.dom.className = "panel hidden";
 	}
 
+	setPosition(position: { left?: number; top?: number; right?: number; bottom?: number }) {
+		const { left, right, top, bottom } = position;
+		this.dom.style.left = left !== undefined ? left + "px" : "auto";
+		this.dom.style.top = top !== undefined ? top + "px" : "auto";
+		this.dom.style.right = right !== undefined ? right + "px" : "auto";
+		this.dom.style.bottom = bottom !== undefined ? bottom + "px" : "auto";
+	}
+
 	moveTo(
 		x: number,
 		y: number,

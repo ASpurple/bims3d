@@ -3,7 +3,7 @@ import { Panel } from "./panel";
 
 export class SubRackPanel extends Panel {
 	constructor(subRack: SubRack) {
-		super({ width: 500, title: "内部冻存架" });
+		super({ width: 380, title: "内部冻存架" });
 		this.subRack = subRack;
 	}
 
