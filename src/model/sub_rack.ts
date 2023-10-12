@@ -5,7 +5,8 @@ import { metalnessMaterial } from "../utils/material";
 import { SubRackSize, pipeSize } from "../store/size";
 import { PipeModel } from "./pipe";
 import { EventTarget, Listener, mainScene } from "../scene";
-import { PipePanel } from "../html/pipe_panel";
+import { globalPanel } from "../html/single_panel";
+import { Rack } from "./rack";
 
 export interface PipePosition {
 	row: number;
@@ -41,7 +42,6 @@ export class SubRack extends CustomModel {
 	private pipes: PipeModel[] = []; // 冻存管
 
 	private activePipe: PipeModel | null = null;
-	private infoPanel: PipePanel | null = null;
 
 	doorModel: Object3D; // 门把手
 
@@ -254,18 +254,17 @@ export class SubRack extends CustomModel {
 
 	// 显示冻存管信息面板
 	showPipePanel(pipe: PipeModel) {
-		this.infoPanel = new PipePanel(
-			pipe,
-			() => this.closePipe(),
-			() => this.deletePipe(pipe)
-		);
-		this.infoPanel.show();
-	}
-
-	// 删除当前冻存管信息面板
-	removePipePanel() {
-		if (!this.infoPanel) return;
-		this.infoPanel.destroy();
+		globalPanel.render({
+			title: "冻存架 / 内部冻存架 / 冻存管",
+			labelValuePairs: [
+				{ label: "所在行", value: `第 ${pipe.row} 行` },
+				{ label: "所在列", value: `第 ${pipe.col} 列` },
+			],
+			buttonGroup: [
+				{ label: "放回", onclick: () => this.closePipe() },
+				{ label: "移除", onclick: () => this.deletePipe(pipe), danger: true },
+			],
+		});
 	}
 
 	// 冻存管抽出后位置
@@ -313,7 +312,7 @@ export class SubRack extends CustomModel {
 		const pipe = this.activePipe;
 		this.activePipe = null;
 		this.insert(pipe);
-		this.removePipePanel();
+		(this.parent as Rack).showSubRackoperationPanel(this);
 	};
 
 	// 冻存管点击事件
@@ -372,7 +371,6 @@ export class SubRack extends CustomModel {
 
 	// 删除冻存管
 	deletePipe = (pipe: PipeModel) => {
-		mainScene.removeModelEvent(pipe.lid); // 解除事件绑定
 		this.remove(pipe);
 		if (this.activePipe && this.activePipe.uuid === pipe.uuid) this.closePipe();
 		this.pipes = this.pipes.filter((p) => p.uuid != pipe.uuid);

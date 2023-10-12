@@ -56,15 +56,18 @@ interface PanelOption {
 
 export class Panel {
 	constructor(option: PanelOption) {
-		this.create(option);
+		this.init(option);
 	}
 	private dom: HTMLElement;
 	private title: HTMLElement | null = null;
+	private anchor: HTMLElement | null = null; // 插入 title 时使用的锚点
 	private content: HTMLElement;
 	private padding = 16;
 	private titleHeight = 32;
+	private _visible = false;
+	protected animateDuration = 300;
 
-	private create(option: PanelOption) {
+	private init(option: PanelOption) {
 		const width = option.width === undefined ? "auto" : option.width + "px";
 		const div = createHTMLElement("div", { class: "panel hidden" }, { width, height: "auto" });
 		if (option.left === undefined && option.right === undefined) div.style.right = "58px";
@@ -74,13 +77,16 @@ export class Panel {
 		if (option.top !== undefined) div.style.top = option.top + "px";
 		if (option.bottom !== undefined) div.style.bottom = option.bottom + "px";
 		this.dom = div;
-		if (option.title) this.createTitle(option.title);
+		this.anchor = createHTMLElement("div", {}, {});
+		this.dom.appendChild(this.anchor);
+		if (option.title) this.renderTitle(option.title);
 		this.createContent(option);
 		document.body.appendChild(div);
 	}
 
 	// 创建 title
-	private createTitle(title: string | HTMLElement) {
+	protected renderTitle(title: string | HTMLElement) {
+		this.removeTitle();
 		let dom: HTMLElement;
 		const p1 = this.padding + "px";
 		const p2 = this.padding * 0.25 + "px";
@@ -99,7 +105,7 @@ export class Panel {
 			dom = title;
 		}
 		this.title = dom;
-		this.dom.appendChild(dom);
+		this.dom.insertBefore(dom, this.anchor);
 	}
 
 	// 创建内容区域 DOM
@@ -110,11 +116,19 @@ export class Panel {
 		this.dom.appendChild(div);
 	}
 
+	get visible() {
+		return this._visible;
+	}
+
 	show() {
+		if (this._visible) return;
+		this._visible = true;
 		this.dom.className = "panel show";
 	}
 
 	hidden() {
+		if (!this._visible) return;
+		this._visible = false;
 		this.dom.className = "panel hidden";
 	}
 
@@ -158,20 +172,24 @@ export class Panel {
 		return this.title;
 	}
 
+	// 添加子元素
 	append(dom: HTMLElement) {
 		this.content.appendChild(dom);
 	}
 
+	// 删除标题
 	removeTitle() {
 		if (!this.title) return;
 		this.title.remove();
 		this.title = null;
 	}
 
+	// 清空内容区域
 	clear() {
 		this.content.innerHTML = "";
 	}
 
+	// 删除子元素
 	remove(selector: string, all = false) {
 		const children = all ? this.dom.querySelectorAll(selector) : [this.dom.querySelector(selector)];
 		for (let i = 0; i < children.length; i++) {
@@ -180,22 +198,22 @@ export class Panel {
 		}
 	}
 
-	private createButton(label: string, onClick: (e: MouseEvent) => void) {
+	private createButton(label: string, onclick?: (e: MouseEvent) => void) {
 		const button = createHTMLElement("button", { class: "panel-button" }, {});
 		button.innerText = label;
-		button.addEventListener("click", onClick);
+		if (onclick) button.addEventListener("click", onclick);
 		return button;
 	}
 
-	addButton(label: string, onClick: (e: MouseEvent) => void, danger = false) {
-		const button = this.createButton(label, onClick);
+	addButton(label: string, onclick?: (e: MouseEvent) => void, danger = false) {
+		const button = this.createButton(label, onclick);
 		button.style.width = `calc(100% - ${this.padding * 2}px)`;
 		button.style.display = "block";
 		if (danger) button.style.color = "red";
 		this.append(button);
 	}
 
-	addButtonGroup(buttons: Array<{ label: string; onClick: (e: MouseEvent) => void; danger?: boolean }>) {
+	addButtonGroup(buttons: Array<{ label: string; onclick?: (e: MouseEvent) => void; danger?: boolean }>) {
 		if (!buttons.length) return;
 		const container = createHTMLElement(
 			"div",
@@ -207,7 +225,7 @@ export class Panel {
 		const s = ((buttons.length - 1) * this.padding) / buttons.length;
 		const width = `calc(${w}% - ${s}px)`;
 		buttons.forEach((btn, i) => {
-			const button = this.createButton(btn.label, btn.onClick);
+			const button = this.createButton(btn.label, btn.onclick);
 			button.style.width = width;
 			button.style.display = "inline-block";
 			button.style.margin = "0";
@@ -229,6 +247,6 @@ export class Panel {
 		const timer = setTimeout(() => {
 			this.dom.remove();
 			clearTimeout(timer);
-		}, 300);
+		}, this.animateDuration);
 	}
 }

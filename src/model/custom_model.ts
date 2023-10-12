@@ -1,14 +1,8 @@
-import { Group, Material, Mesh, Object3D, Path, Shape } from "three";
+import { Group, Material, Mesh, Object3D, Object3DEventMap, Path, Shape } from "three";
 import { isTypedArray } from "three/src/animation/AnimationUtils";
 import { mainScene } from "../scene";
 
 type Model = Mesh | CustomModel | Group;
-
-enum ModelType {
-	CustomModel,
-	Group,
-	Mesh,
-}
 
 export class CustomModel extends Group {
 	constructor(name?: string) {
@@ -29,13 +23,6 @@ export class CustomModel extends Group {
 			arr = [mesh.material as Material];
 		}
 		return arr;
-	}
-
-	// 获取模型类型
-	static getModelType(model: Model): ModelType {
-		if ((model as CustomModel).isCustomModel) return ModelType.CustomModel;
-		if ((model as Group).isGroup) return ModelType.Group;
-		return ModelType.Mesh;
 	}
 
 	// 获取自定义的模型名称
@@ -86,41 +73,37 @@ export class CustomModel extends Group {
 		}
 	}
 
-	// 根据自定义名称查找子模型
-	findChildModelByName(name: string): Model | null {
-		if (!name) return null;
-		if (CustomModel.getCustomModelName(this) === name) return this;
-		let result: Model | null = null;
-		this.recursionChildModel(this.children as Model[], (model: Model) => {
-			if (CustomModel.getCustomModelName(model) === name) {
-				result = model;
-				return true;
-			}
-			return false;
-		});
-		return result;
-	}
-
 	// 添加指定名称的子模型
 	addNamedModel(model: Model, option: { name: string }) {
 		if (option.name) CustomModel.setCustomModelName(model, option.name);
 		this.add(model);
 	}
 
-	// 获取所有网格对象
-	getAllMesh = (f?: CustomModel, children?: Mesh[]) => {
-		if (!f) f = this;
-		if (!children) children = [];
-		if (f.children) {
-			f.children.forEach((c: any) => {
-				if (!c.isGroup && c.isObject3D) children!.push(c);
-				if (c.isGroup) {
-					this.getAllMesh(c, children);
-				}
-			});
-		}
-		return children;
+	// 获取 children 中的所有3D对象
+	getAllObject3D = () => {
+		let results: Object3D[] = [];
+		const get = (target: Object3D<Object3DEventMap> = this) => {
+			if (!target) return;
+			if (target.isObject3D && !(target as Group).isGroup) results.push(target);
+			if (target.children) target.children.forEach((c) => get(c));
+		};
+		get(this);
+		return results;
 	};
+
+	// 递归删除模型的所有事件绑定
+	removeAllModelsEvent(target: Object3D<Object3DEventMap> = this) {
+		if (target.uuid) mainScene.removeModelEvent(target);
+		if (!target.children) return;
+		target.children.forEach((c) => c && this.removeAllModelsEvent(c));
+	}
+
+	// 重写 remove 方法，删除子元素时自动解除所有事件绑定
+	remove(...object: Object3D<Object3DEventMap>[]): this {
+		super.remove(...object);
+		object.forEach((obj) => this.removeAllModelsEvent(obj));
+		return this;
+	}
 
 	// 聚焦模型左侧45°角位置	(默认模型的 左下内 点为源点)
 	focusLeft45(width: number, height: number, depth: number, distance = 3) {

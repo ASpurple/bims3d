@@ -5,8 +5,7 @@ import { CustomModel } from "./custom_model";
 import { SLIVER } from "../utils/material";
 import { RackSize, SubRackSize } from "../store/size";
 import { SubRack } from "./sub_rack";
-import { RackPanel } from "../html/rack_panel";
-import { SubRackPanel } from "../html/sub_rack_panel";
+import { globalPanel } from "../html/single_panel";
 
 export class Rack extends CustomModel {
 	constructor(row = 8, col = 3) {
@@ -38,12 +37,6 @@ export class Rack extends CustomModel {
 
 	// 抽出的子冻存架
 	private activeSubRack: SubRack | null = null;
-
-	// 操作面板
-	private operationPanel: RackPanel | null = null;
-
-	// 子冻存架操作面板
-	private subRackoperationPanel: SubRackPanel | null = null;
 
 	// 根据子冻存架的尺寸初始化冻存架尺寸
 	private initSize(subRackSize: SubRackSize) {
@@ -217,35 +210,30 @@ export class Rack extends CustomModel {
 
 	// 显示冻存架操作面板
 	showOperationPanel() {
-		if (this.operationPanel) return;
-		this.operationPanel = new RackPanel();
-		this.operationPanel.onAddSubRack = this.onAddSubRack;
-		this.operationPanel.render();
-	}
-
-	closeOperationPanel() {
-		if (!this.operationPanel) return;
-		this.operationPanel.destroy();
-		this.operationPanel = null;
+		globalPanel.render({
+			title: "冻存架",
+			labelValuePairs: [
+				{ label: "品牌", value: "海尔" },
+				{ label: "层数", value: "2层" },
+			],
+			buttons: [{ label: "添加", onclick: this.onAddSubRack }],
+		});
 	}
 
 	// 显示子冻存架操作面板
 	showSubRackoperationPanel(sub: SubRack) {
-		if (this.subRackoperationPanel) return;
-		this.subRackoperationPanel = new SubRackPanel(sub);
-		this.subRackoperationPanel.onInsert = () => {
-			if (this.activeSubRack) this.closeSubRack();
-		};
-		this.subRackoperationPanel.onRemove = () => {
-			if (this.activeSubRack) this.removeSubRack(this.activeSubRack);
-		};
-		this.subRackoperationPanel.render();
-	}
-
-	closeSubRackoperationPanel() {
-		if (!this.subRackoperationPanel) return;
-		this.subRackoperationPanel.destroy();
-		this.subRackoperationPanel = null;
+		globalPanel.render({
+			title: "冻存架 / 内部冻存架",
+			labelValuePairs: [
+				{ label: "行数", value: `${sub.row} 层` },
+				{ label: "列数", value: `${sub.col} 层` },
+			],
+			buttonGroup: [
+				{ label: "添加", onclick: () => sub.addPipeAnyWhere() },
+				{ label: "放回", onclick: () => this.closeSubRack() },
+				{ label: "移除", onclick: () => this.activeSubRack && this.removeSubRack(this.activeSubRack), danger: true },
+			],
+		});
 	}
 
 	// 点击子冻存架
@@ -268,7 +256,6 @@ export class Rack extends CustomModel {
 		this.activeSubRack = subRack;
 		this.drawOutSubRack(subRack);
 		this.showSubRackoperationPanel(subRack);
-		this.closeOperationPanel();
 	};
 
 	// 关闭子冻存架
@@ -278,7 +265,6 @@ export class Rack extends CustomModel {
 		this.activeSubRack.closePipe();
 		this.insertSubRack(this.activeSubRack);
 		this.activeSubRack = null;
-		this.closeSubRackoperationPanel();
 		this.showOperationPanel();
 	};
 
@@ -300,13 +286,8 @@ export class Rack extends CustomModel {
 
 	// 删除子冻存架
 	removeSubRack = (sub: SubRack) => {
-		mainScene.removeModelEvent(sub.doorModel);
-		sub.getPipes().forEach((p) => {
-			mainScene.removeModelEvent(p.lid);
-		});
 		this.remove(sub);
 		this.activeSubRack = null;
-		if (this.subRackoperationPanel) this.subRackoperationPanel.destroy();
 		this.subRacks = this.subRacks.filter((s) => s.uuid != sub.uuid);
 		mainScene.render();
 		this.showOperationPanel();
