@@ -275,6 +275,7 @@ export class Rack extends CustomModel {
 	closeSubRack = () => {
 		if (!this.activeSubRack) return;
 		this.activeSubRack.selected = false;
+		this.activeSubRack.closePipe();
 		this.insertSubRack(this.activeSubRack);
 		this.activeSubRack = null;
 		this.closeSubRackoperationPanel();
