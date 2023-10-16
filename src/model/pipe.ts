@@ -3,14 +3,16 @@
 import { MeshLambertMaterial, MeshPhysicalMaterial } from "three";
 import { pipeSize } from "../store/size";
 import { Tools } from "../utils/tools";
-import { CustomModel } from "./custom_model";
 import { glassMaterial, metalnessMaterial } from "../utils/material";
+import { NestedContainer, InsertPosition } from "./nested_container";
+import { ModelContainer } from "./model_container";
+import { Position3 } from "../scene";
+import { globalPanel } from "../html/single_panel";
 
-export class PipeModel extends CustomModel {
+export class PipeModel extends NestedContainer {
 	constructor(color?: string) {
-		super();
+		super("pipe");
 		if (color) this.color = color;
-		this.setName(PipeModel.modelName);
 		this.render();
 	}
 
@@ -21,10 +23,10 @@ export class PipeModel extends CustomModel {
 	lidHeight = pipeSize.pipeRadius * 2;
 	containerHeight = pipeSize.pipeHeight - this.lidHeight;
 	bottomRightHeight = this.radius / 4;
-	lid: CustomModel;
+	lid: ModelContainer;
 
-	row = 1; // 在冻存架中的行
-	col = 1; // 在冻存架中的列
+	rows = 0;
+	cols = 0;
 
 	lidBlackBottom() {
 		const r = this.radius;
@@ -36,7 +38,7 @@ export class PipeModel extends CustomModel {
 	}
 
 	createLid() {
-		const lidContainer = new CustomModel();
+		const lidContainer = new ModelContainer(false, "lid");
 		const r = this.radius;
 		const material = new MeshLambertMaterial({ color: this.color });
 		const h = this.lidHeight - this.bottomRightHeight;
@@ -52,7 +54,7 @@ export class PipeModel extends CustomModel {
 	}
 
 	container() {
-		const model = new CustomModel();
+		const model = new ModelContainer();
 		const r1 = this.radius * 0.9;
 		const h1 = this.containerHeight * 0.9;
 		const r2 = this.radius * 0.5;
@@ -68,7 +70,45 @@ export class PipeModel extends CustomModel {
 
 	render() {
 		this.lid = this.createLid();
-		this.addNamedModel(this.lid, { name: "pipe_lid" });
+		this.add(this.lid);
 		this.add(this.container());
+	}
+
+	get boxSize() {
+		const dia = pipeSize.pipeRadius * 2;
+		return { width: dia, height: pipeSize.pipeHeight, depth: dia };
+	}
+
+	// 根据子节点的 innsertPosition 计算子节点的偏移（translate）
+	getDefaultChildNodeTranslate(childNode: NestedContainer): Position3 {
+		return { x: 0, y: 0, z: 0 };
+	}
+
+	// 显示当前模型的操作面板 （当前节点被选中时调用此方法）
+	showOperationPanel(): void {
+		const row = this.innsertPosition.row + 1;
+		const col = this.innsertPosition.col + 1;
+		globalPanel.render({
+			title: "冻存架 / 内部冻存架 / 冻存管",
+			labelValuePairs: [
+				{ label: "所在行", value: `第 ${row} 行` },
+				{ label: "所在列", value: `第 ${col} 列` },
+			],
+			buttonGroup: [
+				{ label: "放回", onclick: () => this.close() },
+				{ label: "移除", onclick: () => this.destroyAndShowParentNode(), danger: true },
+			],
+		});
+	}
+
+	// 获取点击事件触发位置
+	get eventRegion(): ModelContainer | null {
+		return this.lid;
+	}
+
+	childNodeFocusSwitchingAnimate() {}
+
+	createChildNode() {
+		return undefined;
 	}
 }

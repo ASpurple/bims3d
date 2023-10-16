@@ -1,12 +1,11 @@
 import { DoubleSide, ExtrudeGeometry, Mesh, MeshPhongMaterial, MirroredRepeatWrapping, RepeatWrapping, Shape, TextureLoader } from "three";
-import { CustomModel } from "./custom_model";
+import { ModelContainer } from "./model_container";
 import { Tools } from "../utils/tools";
 import { mainScene } from "../scene";
 
-export class Floor extends CustomModel {
+export class Floor extends ModelContainer {
 	constructor() {
-		super();
-		this.setName("floor");
+		super(true, "floor");
 		this.floor();
 	}
 	private width = 100;

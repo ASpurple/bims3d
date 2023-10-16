@@ -1,32 +1,29 @@
-import { CylinderGeometry, Mesh, Object3D, Path, TorusGeometry } from "three";
+import { CylinderGeometry, Mesh, Path, TorusGeometry } from "three";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
-import { CustomModel } from "./custom_model";
 import { metalnessMaterial } from "../utils/material";
 import { SubRackSize, pipeSize } from "../store/size";
 import { PipeModel } from "./pipe";
-import { EventTarget, Listener, mainScene } from "../scene";
 import { globalPanel } from "../html/single_panel";
-import { Rack } from "./rack";
+import { NestedContainer } from "./nested_container";
+import { ModelContainer } from "./model_container";
+import { mainScene } from "../scene";
 
 export interface PipePosition {
 	row: number;
 	col: number;
 }
 
-export class SubRack extends CustomModel {
-	constructor(row = 8, col = 3) {
-		super();
-		this.row = row;
-		this.col = col;
+export class SubRack extends NestedContainer {
+	constructor(rows = 8, cols = 3) {
+		super("sub_rack");
+		this.rows = rows;
+		this.cols = cols;
 		this.initSize();
-		this.setName(SubRack.modelName);
 		this.render();
 	}
 
-	static readonly modelName = "sub_rack";
-
-	row = 0; // 冻存管行数
-	col = 0; // 冻存管列数
+	rows = 0; // 冻存管行数
+	cols = 0; // 冻存管列数
 
 	rowSpace = 0; // 行间隔
 	colSpace = 0; // 列间隔
@@ -37,16 +34,10 @@ export class SubRack extends CustomModel {
 	holeRadius = 0;
 	thickness = 0.1;
 
-	level = 1; // 在冻存架(父级)的第几层（1 base）
-
-	private pipes: PipeModel[] = []; // 冻存管
-
-	private activePipe: PipeModel | null = null;
-
-	doorModel: Object3D; // 门把手
+	doorModel: ModelContainer; // 门把手
 
 	private initSize() {
-		const size = new SubRackSize(this.row, this.col);
+		const size = new SubRackSize(this.rows, this.cols);
 		this.rowSpace = size.rowSpace;
 		this.colSpace = size.colSpace;
 		this.width = size.width;
@@ -153,10 +144,10 @@ export class SubRack extends CustomModel {
 		const sc = this.colSpace; // 列间隔
 		const radius = this.holeRadius;
 
-		for (let i = 0; i < this.row; i++) {
+		for (let i = 0; i < this.rows; i++) {
 			// 行
 			const x = sr + radius + i * (radius + sr + radius);
-			for (let k = 0; k < this.col; k++) {
+			for (let k = 0; k < this.cols; k++) {
 				// 列
 				const y = sc + radius + k * (radius + sc + radius);
 				const path = new Path();
@@ -213,7 +204,7 @@ export class SubRack extends CustomModel {
 	}
 
 	private door() {
-		const model = new CustomModel();
+		const model = new ModelContainer();
 		const p = Tools.rectMesh(new RectMeshOption(this.width, this.height));
 		p.translateZ(this.depth);
 		model.add(p, ...this.doorPanel());
@@ -222,7 +213,7 @@ export class SubRack extends CustomModel {
 	}
 
 	private render() {
-		const container = new CustomModel();
+		const container = new ModelContainer();
 		container.add(...this.floor());
 		container.add(...this.vertical());
 		container.add(...this.topPole());
@@ -232,160 +223,65 @@ export class SubRack extends CustomModel {
 		this.add(container);
 	}
 
-	getPipes() {
-		return this.pipes;
+	get boxSize() {
+		return { width: this.width, height: this.height, depth: this.depth };
 	}
 
 	// 根据行和列计算冻存管偏移位置
-	private pipeOffset(row: number, col: number) {
+	getDefaultChildNodeTranslate(childNode: NestedContainer) {
+		const { row, col } = childNode.innsertPosition;
 		const x = this.colSpace + this.holeRadius + col * (this.holeRadius * 2 + this.colSpace);
 		const z = this.rowSpace + this.holeRadius + row * (this.holeRadius * 2 + this.rowSpace);
-		return { x, z };
+		return { x, y: this.thickness, z };
 	}
 
-	// 指定行列位置上是否存在冻存管
-	pipeExists(row: number, col: number) {
-		for (let i = 0; i < this.pipes.length; i++) {
-			const pipe = this.pipes[i];
-			if (pipe.row == row && pipe.col == col) return true;
-		}
-		return false;
-	}
-
-	// 显示冻存管信息面板
-	showPipePanel(pipe: PipeModel) {
+	// 显示当前模型的操作面板
+	showOperationPanel() {
 		globalPanel.render({
-			title: "冻存架 / 内部冻存架 / 冻存管",
+			title: "冻存架 / 内部冻存架",
 			labelValuePairs: [
-				{ label: "所在行", value: `第 ${pipe.row} 行` },
-				{ label: "所在列", value: `第 ${pipe.col} 列` },
+				{ label: "行数", value: `${this.rows} 行` },
+				{ label: "列数", value: `${this.cols} 列` },
 			],
 			buttonGroup: [
-				{ label: "放回", onclick: () => this.closePipe() },
-				{ label: "移除", onclick: () => this.deletePipe(pipe), danger: true },
+				{ label: "添加", onclick: () => this.addChildNodeAnyWhere() },
+				{ label: "放回", onclick: () => this.close() },
+				{
+					label: "移除",
+					onclick: () => this.destroyAndShowParentNode(),
+					danger: true,
+				},
 			],
 		});
 	}
 
-	// 冻存管抽出后位置
-	get outPosition() {
-		return this.thickness + pipeSize.pipeHeight;
-	}
-
-	// 冻存管插入后位置
-	get innerPosition() {
-		return this.thickness;
-	}
-
-	// 冻存管塞入冻存架
-	insert = (pipe: PipeModel) => {
-		const y = this.outPosition;
-		Tools.animate({ top: y }, { top: this.innerPosition }, ({ top }) => {
-			pipe.position.setY(top);
-			mainScene.render();
-		});
-	};
-
-	// 从冻存架抽出冻存管
-	drawOut(pipe: PipeModel) {
-		const y = this.innerPosition;
-		const t = this.outPosition;
-		Tools.animate({ top: y }, { top: t }, ({ top }) => {
-			pipe.position.setY(top);
+	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
+		const s0 = { y: this.thickness };
+		const s1 = { y: this.thickness + pipeSize.pipeHeight };
+		const from = focus ? s0 : s1;
+		const to = focus ? s1 : s0;
+		Tools.animate(from, to, ({ y }) => {
+			childNode.position.setY(y);
 			mainScene.render();
 		});
 	}
 
-	// 选中冻存管
-	selectPipe = (pipe: PipeModel) => {
-		if (this.activePipe) this.closePipe();
-		pipe.selected = true;
-		this.activePipe = pipe;
-		this.drawOut(pipe);
-		this.showPipePanel(pipe);
-	};
-
-	// 关闭冻存管
-	closePipe = () => {
-		if (!this.activePipe) return;
-		this.activePipe.selected = false;
-		const pipe = this.activePipe;
-		this.activePipe = null;
-		this.insert(pipe);
-		(this.parent as Rack).showSubRackoperationPanel(this);
-	};
-
-	// 冻存管点击事件
-	private onPipeClick = (target: EventTarget) => {
-		if (!this.selected) return;
-		const pipe = CustomModel.findNamedParent(target.object, PipeModel.modelName) as PipeModel;
-		const isActived = this.activePipe && this.activePipe.uuid === pipe.uuid;
-		if (isActived) {
-			this.closePipe();
-		} else {
-			this.selectPipe(pipe);
-		}
-	};
-
-	// 添加冻存管 （初始位置为 1，1）
-	addPipe(row: number, col: number, pipe?: PipeModel): boolean {
-		row--;
-		col--;
-		if (row < 0 || col < 0 || row > this.row || col > this.col) return false;
-		pipe = pipe ?? new PipeModel();
-		pipe.row = row;
-		pipe.col = col;
-		const offset = this.pipeOffset(row, col);
-		if (this.pipeExists(row, col)) return false;
-		this.pipes.push(pipe);
-		const { x, z } = offset;
-		const y = this.thickness + pipeSize.pipeHeight;
-		pipe.translateX(x);
-		pipe.translateY(y);
-		pipe.translateZ(z);
-		this.add(pipe);
-		// 冻存管盖子添加点击事件
-		mainScene.addEventListener(new Listener("click", pipe.lid, this.onPipeClick));
-		this.insert(pipe);
-		return true;
+	get eventRegion() {
+		return this.doorModel;
 	}
 
-	// 寻找空位置
-	findFreePosition(): { row: number; col: number } | null {
-		for (let r = 0; r < this.row; r++) {
-			for (let c = 0; c < this.col; c++) {
-				if (!this.pipeExists(r, c)) return { row: r + 1, col: c + 1 };
-			}
-		}
-		return null;
+	createChildNode() {
+		return new PipeModel();
 	}
-
-	// 在任意空位插入冻存管
-	addPipeAnyWhere(pipe?: PipeModel): boolean {
-		if (this.pipes.length >= this.row * this.col) return false;
-		pipe = pipe ?? new PipeModel(this.level == 1 ? "#ff5a5d" : undefined);
-		const free = this.findFreePosition();
-		if (!free) return false;
-		return this.addPipe(free.row, free.col, pipe);
-	}
-
-	// 删除冻存管
-	deletePipe = (pipe: PipeModel) => {
-		this.remove(pipe);
-		if (this.activePipe && this.activePipe.uuid === pipe.uuid) this.closePipe();
-		this.pipes = this.pipes.filter((p) => p.uuid != pipe.uuid);
-		mainScene.render();
-	};
 }
 
 // 冻存架拉环
-export class PullTab extends CustomModel {
+export class PullTab extends ModelContainer {
 	constructor(width: number, height: number, radius: number) {
-		super();
+		super(false, "pull-tab");
 		this.width = width;
 		this.height = height;
 		this.radius = radius;
-		this.setName("pull-tab");
 		this.render();
 	}
 
@@ -450,7 +346,7 @@ export class PullTab extends CustomModel {
 	}
 
 	render() {
-		const container = new CustomModel();
+		const container = new ModelContainer();
 		container.add(this.innerCylinder());
 		container.add(...this.bufferCylinder());
 		container.add(this.outerCylinder());

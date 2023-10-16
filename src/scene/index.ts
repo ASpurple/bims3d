@@ -16,6 +16,7 @@ import {
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { Tools } from "../utils/tools";
 import { appendStyle, createHTMLElement } from "zyc-real-dom";
+import { ModelContainer } from "../model/model_container";
 
 export interface Position3 {
 	x: number;
@@ -25,10 +26,12 @@ export interface Position3 {
 
 export type EventTarget = Intersection<Object3D>;
 
-type EventType = "click" | "mouseover";
+export type EventType = "click" | "mouseover";
+
+export type EventHandler = (target: EventTarget, targets?: EventTarget[]) => void;
 
 export class Listener {
-	constructor(type: EventType, model: Object3D, handler: (target: EventTarget, targets?: EventTarget[]) => void) {
+	constructor(type: EventType, model: ModelContainer, handler: EventHandler) {
 		this.key = model.uuid;
 		this.type = type;
 		this.model = model;
@@ -36,8 +39,8 @@ export class Listener {
 	}
 	key: string;
 	type: EventType;
-	model: Object3D;
-	handler: (target: Intersection<Object3D>, targets?: EventTarget[]) => void;
+	model: ModelContainer;
+	handler: EventHandler;
 }
 
 // 默认场景
@@ -58,7 +61,7 @@ class DefaultScene {
 	private cameraPosition0 = { x: 0, y: 80, z: 60 }; // 相机初始位置
 	private lastMouseDown = 0;
 	private listeners: Listener[] = [];
-	private listenerModels: Object3D[] = [];
+	private listenerModels: ModelContainer[] = [];
 
 	private createCanvas() {
 		const app = document.querySelector("#app");
@@ -193,7 +196,8 @@ class DefaultScene {
 
 	// 重置相机位置
 	resetCamera() {
-		return this.moveCameraTo(this.cameraPosition0, this.cameraLookAt);
+		const cameraLookAt = { x: 0, y: 0, z: 0 };
+		return this.moveCameraTo(this.cameraPosition0, cameraLookAt);
 	}
 
 	private onCanvasClick = () => {
@@ -210,6 +214,7 @@ class DefaultScene {
 		};
 	};
 
+	// target 或 target 的子模型是否包含 listenerModel
 	private isInclude(target: Object3D, listenerModel: Object3D): boolean {
 		if (target.uuid === listenerModel.uuid) return true;
 		const parent = target.parent;
@@ -232,18 +237,15 @@ class DefaultScene {
 	};
 
 	private syncListenerModels() {
-		const models: Object3D[] = [];
+		const models: ModelContainer[] = [];
 		this.listeners.forEach((lis) => {
 			models.push(lis.model);
 		});
 		this.listenerModels = models;
 	}
 
-	private sameListener(l1: Listener, l2: Listener): boolean {
-		return l1 == l2 || l1.handler == l2.handler || l1.model == l2.model;
-	}
-
-	addEventListener(listener: Listener) {
+	addEventListener(model: ModelContainer, handler: EventHandler, type: EventType = "click") {
+		const listener = new Listener(type, model, handler);
 		const i = this.listeners.findIndex((lis) => lis.key == listener.key && lis.type == listener.type);
 		if (i >= 0) {
 			this.listeners[i] = listener;
@@ -253,23 +255,19 @@ class DefaultScene {
 		this.syncListenerModels();
 	}
 
-	removeModelEvent(model: Object3D, eventType?: EventType) {
+	private _removeListener(model: ModelContainer, eventType?: EventType) {
 		this.listeners = this.listeners.filter((lis) => {
-			const same = lis.key !== model.uuid;
-			if (!eventType) return same;
-			return same && lis.type === eventType;
+			const same = lis.key === model.uuid;
+			if (!eventType) return !same;
+			return !same || lis.type !== eventType;
 		});
 	}
 
-	removeEventListener(listener: Listener | Function | string) {
-		if (typeof listener == "function") {
-			this.listeners = this.listeners.filter((lis) => lis.handler !== listener);
-		} else if (typeof listener == "string") {
-			this.listeners = this.listeners.filter((lis) => lis.key !== listener);
-		} else {
-			this.listeners = this.listeners.filter((lis) => !this.sameListener(lis, listener));
-		}
-		this.syncListenerModels();
+	// recursive: 是否递归删除所有子模型的时间绑定，默认为true
+	removeEventListener(model: ModelContainer, option: { eventType?: EventType; recursive?: boolean } = { recursive: true }) {
+		if (model.uuid) this._removeListener(model, option.eventType);
+		if (!option.recursive || !model.children) return;
+		model.children.forEach((c: any) => c && this.removeEventListener(c, option));
 	}
 }
 

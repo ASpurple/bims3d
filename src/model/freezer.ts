@@ -1,5 +1,5 @@
-import { DoubleSide, ExtrudeGeometry, Mesh, MeshBasicMaterial, MeshPhongMaterial, MeshPhysicalMaterial, Path, Shape } from "three";
-import { CustomModel } from ".";
+/* import { DoubleSide, ExtrudeGeometry, Mesh, MeshBasicMaterial, MeshPhongMaterial, MeshPhysicalMaterial, Path, Shape } from "three";
+import { CustomModel } from "./custom_model";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader";
 
@@ -210,3 +210,4 @@ export class FreezerModel extends CustomModel {
 		});
 	}
 }
+ */

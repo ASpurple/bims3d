@@ -1,42 +1,34 @@
 import { MeshStandardMaterial } from "three";
-import { EventTarget, Listener, mainScene } from "../scene";
+import { EventTarget, Listener, Position3, mainScene } from "../scene";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
-import { CustomModel } from "./custom_model";
+import { ModelContainer } from "./model_container";
 import { SLIVER } from "../utils/material";
 import { RackSize, SubRackSize } from "../store/size";
 import { SubRack } from "./sub_rack";
 import { globalPanel } from "../html/single_panel";
+import { NestedContainer } from "./nested_container";
 
-export class Rack extends CustomModel {
-	constructor(row = 8, col = 3) {
-		super();
-		this.row = row;
-		this.col = col;
-		const subRackSize = new SubRackSize(row, col);
+export class Rack extends NestedContainer {
+	constructor(option?: { rows?: number; cols?: number; childRows?: number; childCols?: number }) {
+		super("rack");
+		const defaultOption = { rows: 2, cols: 1, childRows: 8, childCols: 3 };
+		const ops = option ? { ...defaultOption, ...option } : defaultOption;
+		this.rows = ops.rows;
+		this.cols = ops.cols;
+		const subRackSize = new SubRackSize(ops.childRows, ops.childCols);
 		this.initSize(subRackSize);
-		this.setName(Rack.modelName);
 		this.render();
 	}
 
-	private row: number;
-	private col: number;
+	rows: number;
+	cols: number;
 
-	width: number = 10;
-	height: number = 16;
-	depth: number = 30;
-	eh = this.height / 20; // 边缘高度
+	width: number = 0;
+	height: number = 0;
+	depth: number = 0;
+	eh = 0; // 边缘高度
 
 	thickness = 0.1; // 板材厚度
-
-	static readonly modelName = "rack";
-
-	private totalLevel = 2;
-
-	// 子冻存架
-	private subRacks: SubRack[] = [];
-
-	// 抽出的子冻存架
-	private activeSubRack: SubRack | null = null;
 
 	// 根据子冻存架的尺寸初始化冻存架尺寸
 	private initSize(subRackSize: SubRackSize) {
@@ -49,7 +41,7 @@ export class Rack extends CustomModel {
 	}
 
 	private panel() {
-		const panel = new CustomModel();
+		const panel = new ModelContainer();
 
 		const w = this.width;
 		const h = this.eh;
@@ -70,7 +62,7 @@ export class Rack extends CustomModel {
 		return panel;
 	}
 
-	private mid(parent: CustomModel) {
+	private mid(parent: ModelContainer) {
 		const panel = Tools.rectMesh(new RectMeshOption(this.width, this.depth));
 		panel.translateY(this.height / 2);
 		panel.rotateX(-deg2rad(90));
@@ -87,7 +79,7 @@ export class Rack extends CustomModel {
 		parent.add(panel, c1, c2);
 	}
 
-	private banding(parent: CustomModel) {
+	private banding(parent: ModelContainer) {
 		const w = this.width / 5;
 		const h = this.height + this.eh * 2;
 		const p1 = Tools.rectMesh(new RectMeshOption(this.depth / 10, this.height));
@@ -117,13 +109,13 @@ export class Rack extends CustomModel {
 		parent.add(p1, p2, p3, p4, p5, p6);
 	}
 
-	private addLogo(parent: CustomModel) {
+	private addLogo(parent: ModelContainer) {
 		const size = this.width / 6.5;
 		const height = this.thickness;
 		const material = new MeshStandardMaterial({ color: SLIVER, metalness: 1, roughness: 0.48 });
 		Tools.textMesh("Haier", { size, height }, material).then((mesh) => {
 			mesh.translateX(this.width / 4);
-			mesh.translateY(this.height + 1 - this.thickness);
+			mesh.translateY(this.height + size - height);
 			mesh.translateZ(-this.height / 10);
 			mesh.rotateX(-deg2rad(90));
 			parent.add(mesh);
@@ -132,8 +124,7 @@ export class Rack extends CustomModel {
 	}
 
 	private render() {
-		const container = new CustomModel();
-
+		const container = new ModelContainer();
 		const top = this.panel();
 		const bottom = this.panel();
 		top.translateY(this.height);
@@ -149,64 +140,36 @@ export class Rack extends CustomModel {
 		container.translateY(this.eh + this.thickness);
 	}
 
-	// 指定层是否有子冻存架
-	levelExists(level: number) {
-		for (let i = 0; i < this.subRacks.length; i++) {
-			const element = this.subRacks[i];
-			if (element.level == level) return true;
-		}
-		return false;
+	get boxSize() {
+		return { width: this.width, height: this.height, depth: this.depth };
 	}
 
-	get outerPosition() {
-		return this.depth + 1;
+	getDefaultChildNodeTranslate(childNode: NestedContainer): Position3 {
+		const { row } = childNode.innsertPosition;
+		const x = this.thickness;
+		const y = row * (this.height / 2 + this.eh + this.thickness);
+		const z = 0;
+		return { x, y, z };
 	}
 
-	get innerPosition() {
-		return 0;
-	}
-
-	// 插入子冻存架
-	insertSubRack = (subRack: SubRack) => {
-		Tools.animate({ z: this.outerPosition }, { z: this.innerPosition }, ({ z }) => {
-			subRack.position.setZ(z);
-			mainScene.render();
+	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
+		childNode.focus({ multiple: 4, multipleY: 2 });
+		const s0 = { d: 0 };
+		const s1 = { d: this.depth + 1 };
+		const from = focus ? s0 : s1;
+		const to = focus ? s1 : s0;
+		Tools.animate(from, to, ({ d }) => {
+			childNode.position.setZ(d);
 		});
-	};
-
-	// 抽出子冻存架
-	drawOutSubRack = (subRack: SubRack) => {
-		Tools.animate({ z: this.innerPosition }, { z: this.outerPosition }, ({ z }) => {
-			subRack.position.setZ(z);
-			mainScene.render();
-		});
-	};
-
-	// 添加子冻存架
-	addSubRack(level = 1): boolean {
-		if (this.levelExists(level)) return false;
-		const sub = new SubRack(this.row, this.col);
-		sub.level = level;
-		const y = (level - 1) * (this.height / 2 + this.eh + this.thickness);
-		sub.translateX(this.thickness);
-		sub.translateY(y);
-		sub.translateZ(this.outerPosition);
-		mainScene.addEventListener(new Listener("click", sub.doorModel, this.onSubRackClick));
-		this.subRacks.push(sub);
-		this.insertSubRack(sub);
-		this.add(sub);
-		return true;
 	}
 
-	private onAddSubRack = () => {
-		if (this.subRacks.length >= this.totalLevel) return;
-		const w = this.width;
-		const h = this.height;
-		const d = this.depth;
-		this.focusLeft45(w, h, d).then(() => {
-			this.addSubRackAnywhere();
-		});
-	};
+	createChildNode(): NestedContainer | undefined {
+		return new SubRack();
+	}
+
+	get eventRegion(): ModelContainer | null {
+		return this;
+	}
 
 	// 显示冻存架操作面板
 	showOperationPanel() {
@@ -216,80 +179,10 @@ export class Rack extends CustomModel {
 				{ label: "品牌", value: "海尔" },
 				{ label: "层数", value: "2层" },
 			],
-			buttons: [{ label: "添加", onclick: this.onAddSubRack }],
-		});
-	}
-
-	// 显示子冻存架操作面板
-	showSubRackoperationPanel(sub: SubRack) {
-		globalPanel.render({
-			title: "冻存架 / 内部冻存架",
-			labelValuePairs: [
-				{ label: "行数", value: `${sub.row} 层` },
-				{ label: "列数", value: `${sub.col} 层` },
-			],
-			buttonGroup: [
-				{ label: "添加", onclick: () => sub.addPipeAnyWhere() },
-				{ label: "放回", onclick: () => this.closeSubRack() },
-				{ label: "移除", onclick: () => this.activeSubRack && this.removeSubRack(this.activeSubRack), danger: true },
+			buttons: [
+				{ label: "添加", onclick: () => this.addChildNodeAnyWhere() },
+				{ label: "全览", onclick: () => mainScene.resetCamera() },
 			],
 		});
 	}
-
-	// 点击子冻存架
-	private onSubRackClick = (target: EventTarget) => {
-		const sub = CustomModel.findNamedParent(target.object, SubRack.modelName) as SubRack;
-		const isActived = this.activeSubRack && this.activeSubRack.uuid === sub.uuid;
-		this.focusAhead(this.width, this.height, this.depth, 4).then(() => {
-			if (isActived) {
-				this.closeSubRack();
-			} else {
-				this.selectSubRack(sub);
-			}
-		});
-	};
-
-	// 选中子冻存架
-	selectSubRack = (subRack: SubRack) => {
-		if (this.activeSubRack) this.closeSubRack();
-		subRack.selected = true;
-		this.activeSubRack = subRack;
-		this.drawOutSubRack(subRack);
-		this.showSubRackoperationPanel(subRack);
-	};
-
-	// 关闭子冻存架
-	closeSubRack = () => {
-		if (!this.activeSubRack) return;
-		this.activeSubRack.selected = false;
-		this.activeSubRack.closePipe();
-		this.insertSubRack(this.activeSubRack);
-		this.activeSubRack = null;
-		this.showOperationPanel();
-	};
-
-	// 寻找空位
-	findFreePosition(): number {
-		for (let i = 1; i <= this.totalLevel; i++) {
-			if (!this.levelExists(i)) return i;
-		}
-		return 0;
-	}
-
-	// 在任意空闲位置添加子冻存架
-	addSubRackAnywhere(): boolean {
-		if (this.subRacks.length >= this.totalLevel) return false;
-		const level = this.findFreePosition();
-		if (!level) return false;
-		return this.addSubRack(level);
-	}
-
-	// 删除子冻存架
-	removeSubRack = (sub: SubRack) => {
-		this.remove(sub);
-		this.activeSubRack = null;
-		this.subRacks = this.subRacks.filter((s) => s.uuid != sub.uuid);
-		mainScene.render();
-		this.showOperationPanel();
-	};
 }
