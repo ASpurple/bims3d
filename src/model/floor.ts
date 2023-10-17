@@ -1,40 +1,67 @@
-import { DoubleSide, ExtrudeGeometry, Mesh, MeshPhongMaterial, MirroredRepeatWrapping, RepeatWrapping, Shape, TextureLoader } from "three";
+import { MeshPhysicalMaterial, Path } from "three";
 import { ModelContainer } from "./model_container";
-import { Tools } from "../utils/tools";
-import { mainScene } from "../scene";
+import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
+import { pipeSize } from "../store/size";
+import { matteMaterial } from "../utils/material";
 
 export class Floor extends ModelContainer {
 	constructor() {
 		super(true, "floor");
+		this.brickWidth = pipeSize.dia * 10;
+		this.brickHeight = this.brickWidth;
+		this.thickness = pipeSize.pipeRadius / 2;
+		this.width = this.brickWidth * 29;
+		this.height = this.brickHeight * 18;
 		this.floor();
 	}
-	private width = 100;
-	private height = 60;
-	private thickness = 1;
-	private floorColor = "#666666";
+	private width: number;
+	private height: number;
+	private brickWidth: number;
+	private brickHeight: number;
+	private thickness: number;
+	private floorColor = "#333333";
+
+	private floorPanelMaterial = new MeshPhysicalMaterial({ color: this.floorColor, metalness: 0.3, roughness: 0.6 });
+
+	private createBrick() {
+		const w = this.brickWidth;
+		const h = this.brickHeight;
+		const d = this.thickness;
+		const borderWidth = d / 2;
+		const borderMeshOption = new RectMeshOption(w + borderWidth * 2, h + borderWidth * 2, d);
+		const hole = Tools.drawRect(new Path(), { x: borderWidth, y: borderWidth }, w, h);
+		borderMeshOption.holes.push(hole);
+		borderMeshOption.material = matteMaterial(this.floorColor);
+		const borderMesh = Tools.rectMesh(borderMeshOption);
+		const brickPanelOption = new RectMeshOption(w, h, d);
+		brickPanelOption.material = this.floorPanelMaterial;
+		const brickPanel = Tools.rectMesh(brickPanelOption);
+		brickPanel.translateX(borderWidth);
+		brickPanel.translateY(borderWidth);
+		borderMesh.rotateX(deg2rad(90));
+		brickPanel.rotateX(deg2rad(90));
+		brickPanel.translateZ(d / 2);
+		const container = new ModelContainer(true, "floor_brick");
+		container.add(borderMesh, brickPanel);
+		return container;
+	}
 
 	floor() {
-		const w = this.width;
-		const h = this.height;
-		const t = this.thickness;
-		const x = -(w / 2);
-		const y = 0;
-		const color = this.floorColor;
-
-		const floor = Tools.drawRect(new Shape(), { x, y }, w, h);
-
-		const geometry = new ExtrudeGeometry(floor, { steps: 2, depth: t });
-		const textureLoader = new TextureLoader();
-		textureLoader.load("floor.jpg", (texture) => {
-			texture.repeat.set(0.1, 0.2);
-			texture.wrapS = RepeatWrapping;
-			texture.wrapT = MirroredRepeatWrapping;
-			const material = new MeshPhongMaterial({ color, side: DoubleSide, map: texture });
-			const mesh = new Mesh(geometry, material);
-			mesh.position.set(0, -8, -(h / 2));
-			mesh.rotateX((90 / (180 * Math.PI)) * 10);
-			this.add(mesh);
-			mainScene.render();
-		});
+		const floor = new ModelContainer(true, "floor");
+		const rows = Math.ceil(this.height / this.brickHeight);
+		const cols = Math.ceil(this.width / this.brickWidth);
+		const integralTranslateX = -this.width / 2;
+		const integralTranslateZ = -this.height / 2;
+		for (let r = 0; r < rows; r++) {
+			const z = this.brickHeight * r + integralTranslateZ;
+			for (let c = 0; c < cols; c++) {
+				const x = this.brickWidth * c + integralTranslateX;
+				const brick = this.createBrick();
+				brick.translateX(x);
+				brick.translateZ(z);
+				floor.add(brick);
+			}
+		}
+		this.add(floor);
 	}
 }

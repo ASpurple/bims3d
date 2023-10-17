@@ -2,6 +2,10 @@ class PipeSize {
 	private _pipeRadius = 0.5; // 冻存管半径
 	private _pipeHeight = 5; // 冻存管高度
 
+	get dia(): number {
+		return this._pipeRadius * 2;
+	}
+
 	get pipeRadius() {
 		return this._pipeRadius;
 	}
@@ -18,6 +22,8 @@ class PipeSize {
 		this._pipeHeight = value;
 	}
 }
+
+export const pipeSize = new PipeSize();
 
 export class SubRackSize {
 	constructor(row: number, col: number) {
@@ -57,4 +63,29 @@ export class RackSize {
 	thickness = 0.1; // 板材厚度
 }
 
-export const pipeSize = new PipeSize();
+export class FreezerSize {
+	constructor(rows: number, cols: number, rackSize: RackSize) {
+		this.rows = rows;
+		this.cols = cols;
+		this.width = rackSize.width * cols + this.colSpacing * (cols - 1) + this.thinkness * 2;
+		this.rowStoreyHeight = rackSize.height + this.thinkness + this.rowSpacing;
+		const contentHeight = rows * this.rowStoreyHeight + this.thinkness * 2;
+		this.pedestalHeight = contentHeight * 0.25;
+		this.height = contentHeight + this.pedestalHeight;
+		this.dooThinkness = pipeSize.dia;
+		this.depth = rackSize.depth + this.dooThinkness + this.depthIndent + this.thinkness;
+	}
+
+	rows: number;
+	cols: number;
+	width: number;
+	height: number;
+	depth: number;
+	rowStoreyHeight: number; // 横向隔板隔开后的每层层高
+	dooThinkness: number; // 门板厚度
+	pedestalHeight: number; // 底座高度
+	thinkness: number = 0.5; // 板材厚度
+	depthIndent: number = pipeSize.dia; // 纵深缩进深度
+	rowSpacing: number = pipeSize.dia; // 行间隔
+	colSpacing: number = pipeSize.dia; // 列间隔
+}

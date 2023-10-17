@@ -89,7 +89,7 @@ export abstract class NestedContainer extends ModelContainer {
 		if (!this._activeChildNode) return;
 		const node = this._activeChildNode;
 		this._activeChildNode = null;
-		node.closeChildNode();
+		if (node.activeChildNode) node.activeChildNode.close();
 	};
 
 	// 选中当前节点

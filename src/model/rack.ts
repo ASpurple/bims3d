@@ -153,13 +153,14 @@ export class Rack extends NestedContainer {
 	}
 
 	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
-		childNode.focus({ multiple: 4, multipleY: 2 });
+		if (focus) childNode.focus({ multiple: 4, multipleY: 2 });
 		const s0 = { d: 0 };
 		const s1 = { d: this.depth + 1 };
 		const from = focus ? s0 : s1;
 		const to = focus ? s1 : s0;
 		Tools.animate(from, to, ({ d }) => {
 			childNode.position.setZ(d);
+			mainScene.render();
 		});
 	}
 
