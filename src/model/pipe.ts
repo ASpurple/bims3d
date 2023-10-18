@@ -4,7 +4,7 @@ import { MeshLambertMaterial, MeshPhysicalMaterial } from "three";
 import { pipeSize } from "../store/size";
 import { Tools } from "../utils/tools";
 import { glassMaterial, metalnessMaterial } from "../utils/material";
-import { NestedContainer, InsertPosition } from "./nested_container";
+import { NestedContainer } from "./nested_container";
 import { ModelContainer } from "./model_container";
 import { Position3 } from "../scene";
 import { globalPanel } from "../html/single_panel";
@@ -38,7 +38,7 @@ export class PipeModel extends NestedContainer {
 	}
 
 	createLid() {
-		const lidContainer = new ModelContainer(false, "lid");
+		const lidContainer = new ModelContainer("lid");
 		const r = this.radius;
 		const material = new MeshLambertMaterial({ color: this.color });
 		const h = this.lidHeight - this.bottomRightHeight;

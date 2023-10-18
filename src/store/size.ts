@@ -86,6 +86,16 @@ export class FreezerSize {
 	pedestalHeight: number; // 底座高度
 	thinkness: number = 0.5; // 板材厚度
 	depthIndent: number = pipeSize.dia; // 纵深缩进深度
-	rowSpacing: number = pipeSize.dia; // 行间隔
-	colSpacing: number = pipeSize.dia; // 列间隔
+	rowSpacing: number = pipeSize.pipeHeight * 0.5; // 行间隔
+	colSpacing: number = pipeSize.dia * 3; // 列间隔
+}
+
+export class RoomSize {
+	rows: number = 3;
+	cols: number = 5;
+	width: number = 360;
+	height: number = 240;
+	depth: number = 180;
+	rowSpacing = 54;
+	colSpacing = 36;
 }

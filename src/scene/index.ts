@@ -28,7 +28,7 @@ export type EventTarget = Intersection<Object3D>;
 
 export type EventType = "click" | "mouseover";
 
-export type EventHandler = (target: EventTarget, targets?: EventTarget[]) => void;
+export type EventHandler = (triggerModel: ModelContainer, target: EventTarget, targets?: EventTarget[]) => void;
 
 export class Listener {
 	constructor(type: EventType, model: ModelContainer, handler: EventHandler) {
@@ -41,6 +41,14 @@ export class Listener {
 	type: EventType;
 	model: ModelContainer;
 	handler: EventHandler;
+	modelPenetrate = false; // 模型穿透（点击子模型，是否会触发父级模型的监听器），递归查找树形结构时，遇到一次 isRoot === true，则认为跨模型
+	firstHit = true; // 从点击位置开始往父级查找，是否只有当第一次命中时才触发监听器
+}
+
+export interface AddListenerOption {
+	eventType?: EventType;
+	modelPenetrate?: boolean;
+	firstHit?: boolean;
 }
 
 // 默认场景
@@ -58,7 +66,7 @@ class DefaultScene {
 	private mouse = new Vector2();
 	private controlor: OrbitControls | null = null;
 	private cameraLookAt = { x: 0, y: 0, z: 0 };
-	private cameraPosition0 = { x: 0, y: 80, z: 60 }; // 相机初始位置
+	private cameraPosition0 = { x: 0, y: 220, z: 300 }; // 相机初始位置
 	private lastMouseDown = 0;
 	private listeners: Listener[] = [];
 	private listenerModels: ModelContainer[] = [];
@@ -214,12 +222,35 @@ class DefaultScene {
 		};
 	};
 
-	// target 或 target 的子模型是否包含 listenerModel
-	private isInclude(target: Object3D, listenerModel: Object3D): boolean {
-		if (target.uuid === listenerModel.uuid) return true;
-		const parent = target.parent;
-		if (!parent) return false;
-		return this.isInclude(parent, listenerModel);
+	private eventTrigger(
+		target: Object3D<Object3DEventMap> | null,
+		eventType: EventType,
+		intersects: Intersection<Object3D<Object3DEventMap>>[],
+		hitCount = 0,
+		penetrateCount = 0
+	) {
+		if (!target || !intersects.length) return;
+		if (!(target as ModelContainer).isModelContainer) {
+			this.eventTrigger(target.parent, eventType, intersects, hitCount, penetrateCount);
+			return;
+		}
+
+		for (let i = 0; i < this.listeners.length; i++) {
+			const lis = this.listeners[i];
+			if (target.uuid !== lis.model.uuid || lis.type !== eventType) continue;
+			hitCount++;
+
+			// 如果监听器只监听首次命中，则只会在第一次匹配到时被触发
+			if (lis.firstHit && hitCount > 1) continue;
+
+			// 如果监听器不支持模型穿透，则只会在 target 元素所在的第一个模型组中触发	根据 isRoot 字段判断是否越组
+			if (!lis.modelPenetrate && penetrateCount > 0) continue;
+
+			lis.handler(lis.model, intersects[0], intersects);
+		}
+
+		if ((target as ModelContainer).isRoot) penetrateCount++;
+		this.eventTrigger(target.parent, eventType, intersects, hitCount, penetrateCount);
 	}
 
 	private eventHandler = (type: EventType, event: MouseEvent) => {
@@ -227,13 +258,10 @@ class DefaultScene {
 		this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
 		this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 		raycaster.setFromCamera(this.mouse, this.camera);
-		const intersects = raycaster.intersectObjects(this.listenerModels);
+		const intersects = raycaster.intersectObjects(this.listenerModels.filter((model) => model.visible));
 		if (!intersects.length) return;
 		const target = intersects[0];
-		this.listeners.forEach((lis) => {
-			if (lis.type != type || !this.isInclude(target.object, lis.model)) return;
-			lis.handler(target, intersects);
-		});
+		this.eventTrigger(target.object, type, intersects);
 	};
 
 	private syncListenerModels() {
@@ -244,8 +272,12 @@ class DefaultScene {
 		this.listenerModels = models;
 	}
 
-	addEventListener(model: ModelContainer, handler: EventHandler, type: EventType = "click") {
+	addEventListener(model: ModelContainer, handler: EventHandler, ops: AddListenerOption = {}) {
+		const type = ops.eventType ?? "click";
 		const listener = new Listener(type, model, handler);
+		listener.modelPenetrate = ops.modelPenetrate ?? false;
+		listener.firstHit = ops.firstHit === false ? false : true;
+
 		const i = this.listeners.findIndex((lis) => lis.key == listener.key && lis.type == listener.type);
 		if (i >= 0) {
 			this.listeners[i] = listener;

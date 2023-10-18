@@ -1,12 +1,12 @@
 import { MeshStandardMaterial } from "three";
-import { EventTarget, Listener, Position3, mainScene } from "../scene";
+import { Position3, mainScene } from "../scene";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
 import { ModelContainer } from "./model_container";
 import { SLIVER } from "../utils/material";
 import { RackSize, SubRackSize } from "../store/size";
 import { SubRack } from "./sub_rack";
 import { globalPanel } from "../html/single_panel";
-import { NestedContainer } from "./nested_container";
+import { FocusPosition, NestedContainer } from "./nested_container";
 
 export class Rack extends NestedContainer {
 	constructor(option?: { rows?: number; cols?: number; childRows?: number; childCols?: number }) {
@@ -153,7 +153,7 @@ export class Rack extends NestedContainer {
 	}
 
 	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
-		if (focus) childNode.focus({ multiple: 4, multipleY: 2 });
+		if (focus) childNode.focus({ multipleY: 3, multipleZ: 1.5, cameraPosition: FocusPosition.left_45 });
 		const s0 = { d: 0 };
 		const s1 = { d: this.depth + 1 };
 		const from = focus ? s0 : s1;
@@ -180,9 +180,16 @@ export class Rack extends NestedContainer {
 				{ label: "品牌", value: "海尔" },
 				{ label: "层数", value: "2层" },
 			],
-			buttons: [
+			buttonGroup: [
 				{ label: "添加", onclick: () => this.addChildNodeAnyWhere() },
-				{ label: "全览", onclick: () => mainScene.resetCamera() },
+				{ label: "放回", onclick: () => this.close() },
+				{
+					label: "移除",
+					onclick: () => {
+						this.destroyAndShowParentNode();
+					},
+					danger: true,
+				},
 			],
 		});
 	}

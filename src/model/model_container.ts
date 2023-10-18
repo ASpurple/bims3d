@@ -1,15 +1,18 @@
-import { Group, Material, Mesh, Object3D, Object3DEventMap, Path, Shape } from "three";
+import { Group, Object3D, Object3DEventMap } from "three";
 
 // ModelContainer 作为一个模型或模型组的容器，任何需要被手动控制的模型都需要用 ModelContainer 类进行包装
 export class ModelContainer extends Group {
-	constructor(isRoot = false, name = "model_container") {
+	constructor(name = "model_container") {
 		super();
-		this.isRoot = isRoot;
 		this.name = name;
 	}
 
 	readonly isModelContainer: boolean = true;
-	readonly isRoot: boolean; // 在一个嵌套模型组中，当前模型是否是根模型
+	protected _isRoot: boolean = false; // 在一个嵌套模型组中，是否处于树形结构的根部
+
+	get isRoot() {
+		return this._isRoot;
+	}
 
 	get rootModel() {
 		return this.findRoot(this);

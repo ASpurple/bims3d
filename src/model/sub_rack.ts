@@ -278,7 +278,7 @@ export class SubRack extends NestedContainer {
 // 冻存架拉环
 export class PullTab extends ModelContainer {
 	constructor(width: number, height: number, radius: number) {
-		super(false, "pull-tab");
+		super("pull-tab");
 		this.width = width;
 		this.height = height;
 		this.radius = radius;

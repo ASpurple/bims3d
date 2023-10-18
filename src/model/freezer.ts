@@ -1,8 +1,21 @@
-import { DoubleSide, ExtrudeGeometry, Mesh, MeshBasicMaterial, MeshPhongMaterial, MeshPhysicalMaterial, Path, Shape, Vector2, Vector3 } from "three";
+import {
+	DoubleSide,
+	ExtrudeGeometry,
+	Matrix4,
+	Mesh,
+	MeshBasicMaterial,
+	MeshPhongMaterial,
+	MeshPhysicalMaterial,
+	Path,
+	Quaternion,
+	Shape,
+	Vector2,
+	Vector3,
+} from "three";
 import { ModelContainer } from "./model_container";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader";
-import { NestedContainer } from "./nested_container";
+import { FocusPosition, NestedContainer } from "./nested_container";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
 import { Position3, mainScene } from "../scene";
 import { globalPanel } from "../html/single_panel";
@@ -93,7 +106,7 @@ export class Freezer extends NestedContainer {
 		airBackPanel.translateY(bottomSpacing);
 		airBackPanel.translateZ(d + t / 2 + t / 3);
 
-		const container = new ModelContainer(true, "freezer_pedestal");
+		const container = new ModelContainer("freezer_pedestal");
 		container.add(mesh, airPanel, airBackPanel);
 		return container;
 	}
@@ -115,7 +128,7 @@ export class Freezer extends NestedContainer {
 			{ depth: d - t }
 		);
 		const backPanel = Tools.rectMesh(new RectMeshOption(w, h, t));
-		const container = new ModelContainer(true, "freezer_door");
+		const container = new ModelContainer("freezer_door");
 		mesh.translateY(this.size.pedestalHeight);
 		mesh.translateZ(t);
 		backPanel.translateY(this.size.pedestalHeight);
@@ -125,7 +138,7 @@ export class Freezer extends NestedContainer {
 
 	// 冰箱横向隔板
 	createRowClapboards() {
-		const container = new ModelContainer(true, "freezer_row_clapboards");
+		const container = new ModelContainer("freezer_row_clapboards");
 		const t = this.size.thinkness;
 		const w = this.size.width - 2 * t;
 		const h = t;
@@ -147,7 +160,7 @@ export class Freezer extends NestedContainer {
 
 	// 冰箱门
 	createDoor() {
-		const container = new ModelContainer(true, "freezer_door");
+		const container = new ModelContainer("freezer_door");
 		const w = this.size.width;
 		const h = this.size.height - this.size.pedestalHeight;
 		const d = this.size.dooThinkness;
@@ -169,8 +182,7 @@ export class Freezer extends NestedContainer {
 		mesh.rotateX(deg2rad(90));
 		mesh.translateY(this.size.depth - d);
 		mesh.translateZ(-h - this.size.pedestalHeight);
-		container.add(mesh);
-		container.add(this.createDoorknob());
+		container.add(mesh, this.createDoorknob());
 		return container;
 	}
 
@@ -190,7 +202,7 @@ export class Freezer extends NestedContainer {
 
 	// 门把手
 	createDoorknob() {
-		const container = new ModelContainer(true, "freezer_door_doorknob");
+		const container = new ModelContainer("freezer_door_doorknob");
 		const d = this.size.dooThinkness * 0.9;
 		const edgeRadius = d / 2;
 		const w = this.size.width * 0.5 - edgeRadius;
@@ -254,7 +266,7 @@ export class Freezer extends NestedContainer {
 	}
 
 	addLog() {
-		const container = new ModelContainer(true, "freezer_log");
+		const container = new ModelContainer("freezer_log");
 
 		const d = this.size.depth;
 		const w = this.size.width;
@@ -306,16 +318,13 @@ export class Freezer extends NestedContainer {
 
 	openCloseDoor(open?: boolean) {
 		if (open === undefined) open = !this._opening;
+		if (!this.parentNode) return;
 		const s0 = { rad: 0 };
-		const s1 = { rad: deg2rad(10) };
+		const s1 = { rad: deg2rad(135) };
 		const from = open ? s0 : s1;
 		const to = open ? s1 : s0;
-		const size = this.size;
-		const axis = new Vector3(0, size.height, 0);
-		axis.normalize();
 		Tools.animate(from, to, (state) => {
-			this.door.rotateOnAxis(axis, state.rad);
-			mainScene.render();
+			this.door.rotation.y = state.rad;
 		});
 		this._opening = open;
 	}
@@ -326,7 +335,13 @@ export class Freezer extends NestedContainer {
 
 	// 根据子节点的 innsertPosition 计算子节点的偏移（translate）
 	getDefaultChildNodeTranslate(childNode: NestedContainer): Position3 {
-		return { x: 0, y: 0, z: 0 };
+		const { row, col } = childNode.innsertPosition;
+		const base = this.size.pedestalHeight + this.size.thinkness;
+		const rowStoreyHeight = this.size.rowStoreyHeight;
+		const x = this.size.thinkness + col * (this.size.colSpacing + childNode.boxSize.width);
+		const y = base + row * rowStoreyHeight;
+		const z = this.size.thinkness;
+		return { x, y, z };
 	}
 
 	// 显示当前模型的操作面板 （当前节点被选中时调用此方法）
@@ -338,6 +353,7 @@ export class Freezer extends NestedContainer {
 				{ label: "列数", value: `${this.cols} 列` },
 			],
 			buttonGroup: [
+				{ label: "添加", onclick: () => this.addChildNodeAnyWhere() },
 				{ label: "关闭", onclick: () => this.close() },
 				{ label: "移除", onclick: () => this.destroyAndShowParentNode(), danger: true },
 			],
@@ -350,10 +366,24 @@ export class Freezer extends NestedContainer {
 	}
 
 	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean) {
-		this.focus({ multipleY: 0.6, multipleZ: 2.5 });
+		if (focus) {
+			childNode.focus({ multipleX: 2, multipleY: 1, multipleZ: 1.6, cameraPosition: FocusPosition.left_45 });
+		} else {
+			this.focus({ multipleY: 0.4, multipleZ: 2 });
+		}
+		const s0 = { d: 0 };
+		const s1 = { d: this.size.depth * 1.5 };
+		const from = focus ? s0 : s1;
+		const to = focus ? s1 : s0;
+		Tools.animate(from, to, ({ d }) => {
+			childNode.position.setZ(d);
+		});
 	}
 
 	createChildNode() {
-		return new Rack();
+		const rack = new Rack();
+		rack.addChildNodeAnyWhere();
+		rack.addChildNodeAnyWhere();
+		return rack;
 	}
 }

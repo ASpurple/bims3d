@@ -1,7 +1,6 @@
-import { Object3D, Object3DEventMap } from "three";
+import { Object3D, Vector3 } from "three";
 import { ModelContainer } from "./model_container";
-import { EventHandler, EventTarget, EventType, Listener, Position3, mainScene } from "../scene";
-import { Tools } from "../utils/tools";
+import { Position3, mainScene } from "../scene";
 
 export enum FocusPosition {
 	left_45,
@@ -24,12 +23,19 @@ export interface FocusOptions {
 	multipleX?: number;
 	multipleY?: number;
 	multipleZ?: number;
+	lookAtMultipleX?: number;
+	lookAtMultipleY?: number;
+	lookAtMultipleZ?: number;
+	lookAtOffsetX?: number;
+	lookAtOffsetY?: number;
+	lookAtOffsetZ?: number;
 }
 
 // 嵌套的模型 container
 export abstract class NestedContainer extends ModelContainer {
 	constructor(name?: string) {
-		super(true, name);
+		super(name);
+		this._isRoot = true;
 	}
 
 	readonly isNestedContainer = true;
@@ -108,12 +114,24 @@ export abstract class NestedContainer extends ModelContainer {
 		this.parentNode.childNodeFocusSwitchingAnimate(this, false);
 	}
 
+	// 查找最近的 NestedContainer
+	findNestedContainer(obj: Object3D): NestedContainer | null {
+		if ((obj as any).isNestedContainer) return obj as NestedContainer;
+		if (!obj.parent) return null;
+		return this.findNestedContainer(obj.parent);
+	}
+
 	// 子节点的点击事件处理器
-	private onChildNodeClick = (target: EventTarget) => {
-		// 父节点非选中状态时忽略事件
-		if (!this.selected) return;
-		const node = this.findRoot(target.object) as NestedContainer;
-		if (!node || !node.isNestedContainer) return;
+	private onChildNodeClick = (target: ModelContainer) => {
+		// 父节点非选中状态时，将点击事件传导给父级节点
+		if (!this.selected) {
+			if (this.parentNode && this.eventRegion) this.parentNode.onChildNodeClick(this.eventRegion);
+			return;
+		}
+
+		const node = this.findNestedContainer(target);
+		if (!node) return;
+
 		if (this.activeChildNode && !node.selected) this.activeChildNode.close();
 		if (node.selected) {
 			node.close();
@@ -199,6 +217,7 @@ export abstract class NestedContainer extends ModelContainer {
 		if (this.parentNode) {
 			this.parentNode.showOperationPanel();
 		}
+		this.close();
 		this.destroy();
 		mainScene.render();
 	};
@@ -221,28 +240,32 @@ export abstract class NestedContainer extends ModelContainer {
 		const w = width;
 		const h = height;
 		const d = depth;
-		const lookAt = { x: p0.x + w / 2, y: p0.y + h / 2, z: p0.z + d / 2 };
+		const {
+			lookAtMultipleX: ltx = 1,
+			lookAtMultipleY: lty = 1,
+			lookAtMultipleZ: ltz = 1,
+			lookAtOffsetX: lox = 0,
+			lookAtOffsetY: loy = 0,
+			lookAtOffsetZ: loz = 0,
+		} = options;
+		const lookAt = { x: p0.x + (w / 2) * ltx + lox, y: p0.y + (h / 2) * lty + loy, z: p0.z + (d / 2) * ltz + loz };
 		const multiple = options.multiple ?? 3;
 		const cameraPosition = options.cameraPosition ?? FocusPosition.ahead;
 		const { offsetX: ox = 0, offsetY: oy = 0, offsetZ: oz = 0, multipleX: mx = 1, multipleY: my = 1, multipleZ: mz = 1 } = options;
-
-		let to: Position3 = { x: p0.x + w / 2, y: p0.y + h * multiple, z: p0.z + d * multiple };
-		if (cameraPosition == FocusPosition.left_45) to = { x: p0.x - w * multiple, y: p0.y + h * multiple, z: p0.z + d * multiple };
-		if (cameraPosition == FocusPosition.right_45) to = { x: p0.x + w * multiple, y: p0.y + h * multiple, z: p0.z + d * multiple };
-
-		to.x *= mx;
-		to.y *= my;
-		to.z *= mz;
-		to.x += ox;
-		to.y += oy;
-		to.z += oz;
+		const dx = w * multiple * mx + ox;
+		const dy = h * multiple * my + oy;
+		const dz = d * multiple * mz + oz;
+		let to: Position3 = { x: p0.x + w / 2, y: p0.y + dy, z: p0.z + dz };
+		if (cameraPosition == FocusPosition.left_45) to = { x: p0.x - dx, y: p0.y + dy, z: p0.z + dz };
+		if (cameraPosition == FocusPosition.right_45) to = { x: p0.x + dx, y: p0.y + dy, z: p0.z + dz };
 
 		return mainScene.moveCameraTo(to, lookAt);
 	}
 
 	// 视角聚焦当前模型	(默认模型的 左下内 点为源点)
 	focus(options: FocusOptions = {}) {
-		const position = { ...this.position };
+		const vec = new Vector3();
+		const position = { ...this.getWorldPosition(vec) };
 		this.focusTarget(this.boxSize, position, options);
 	}
 }

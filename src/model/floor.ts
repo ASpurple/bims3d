@@ -1,17 +1,17 @@
-import { MeshPhysicalMaterial, Path } from "three";
+import { MeshPhongMaterial, MeshPhysicalMaterial, Path } from "three";
 import { ModelContainer } from "./model_container";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
 import { pipeSize } from "../store/size";
 import { matteMaterial } from "../utils/material";
 
 export class Floor extends ModelContainer {
-	constructor() {
-		super(true, "floor");
-		this.brickWidth = pipeSize.dia * 10;
+	constructor(width: number, height: number) {
+		super("floor");
+		this.brickWidth = width / 18;
 		this.brickHeight = this.brickWidth;
 		this.thickness = pipeSize.pipeRadius / 2;
-		this.width = this.brickWidth * 29;
-		this.height = this.brickHeight * 18;
+		this.width = width;
+		this.height = height;
 		this.floor();
 	}
 	private width: number;
@@ -21,7 +21,7 @@ export class Floor extends ModelContainer {
 	private thickness: number;
 	private floorColor = "#333333";
 
-	private floorPanelMaterial = new MeshPhysicalMaterial({ color: this.floorColor, metalness: 0.3, roughness: 0.6 });
+	private floorPanelMaterial = new MeshPhongMaterial({ color: this.floorColor });
 
 	private createBrick() {
 		const w = this.brickWidth;
@@ -41,13 +41,13 @@ export class Floor extends ModelContainer {
 		borderMesh.rotateX(deg2rad(90));
 		brickPanel.rotateX(deg2rad(90));
 		brickPanel.translateZ(d / 2);
-		const container = new ModelContainer(true, "floor_brick");
+		const container = new ModelContainer("floor_brick");
 		container.add(borderMesh, brickPanel);
 		return container;
 	}
 
 	floor() {
-		const floor = new ModelContainer(true, "floor");
+		const floor = new ModelContainer("floor");
 		const rows = Math.ceil(this.height / this.brickHeight);
 		const cols = Math.ceil(this.width / this.brickWidth);
 		const integralTranslateX = -this.width / 2;
