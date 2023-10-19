@@ -91,11 +91,11 @@ export class FreezerSize {
 }
 
 export class RoomSize {
-	rows: number = 3;
-	cols: number = 5;
-	width: number = 360;
+	rows: number = 4;
+	cols: number = 7;
+	width: number = 420;
 	height: number = 240;
 	depth: number = 180;
-	rowSpacing = 54;
-	colSpacing = 36;
+	rowSpacing = 30;
+	colSpacing = 30;
 }

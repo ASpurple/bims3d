@@ -1,9 +1,16 @@
 import { MeshLambertMaterial, MeshPhysicalMaterial, Material, DoubleSide } from "three";
 
-export function glassMaterial(): Material {
+export interface GlassMaterialOption {
+	color?: string;
+	opacity?: number;
+}
+
+export function glassMaterial(option: GlassMaterialOption = {}): Material {
+	const color = option.color ?? "#ffffff";
+	const opacity = option.opacity ?? 0.8;
 	var material = new MeshLambertMaterial({
-		color: "#ffffff",
-		opacity: 0.8,
+		color,
+		opacity,
 		transparent: true,
 	});
 	return material;

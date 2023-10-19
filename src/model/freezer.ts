@@ -180,9 +180,11 @@ export class Freezer extends NestedContainer {
 			{ depth: h }
 		);
 		mesh.rotateX(deg2rad(90));
-		mesh.translateY(this.size.depth - d);
 		mesh.translateZ(-h - this.size.pedestalHeight);
+		mesh.translateX(-this.size.width);
 		container.add(mesh, this.createDoorknob());
+		container.translateX(this.size.width);
+		container.translateZ(this.size.depth - d);
 		return container;
 	}
 
@@ -227,7 +229,7 @@ export class Freezer extends NestedContainer {
 		);
 		inner.translateX(bw);
 		inner.translateY(bw);
-		inner.translateZ(d * 0.05);
+		inner.translateZ(d * 0.1);
 
 		const edge = Tools.shapeMesh(
 			(shape) => {
@@ -240,9 +242,9 @@ export class Freezer extends NestedContainer {
 		edge.rotateX(deg2rad(-90));
 		edge.translateY(-edgeRadius);
 		container.add(mesh, inner, edge);
-		container.translateX(edgeRadius / 2);
+		container.translateX(edgeRadius / 2 - this.size.width);
 		container.translateY(this.size.pedestalHeight + (this.size.height - this.size.pedestalHeight) / 2);
-		container.translateZ(this.size.depth - d / 1.5);
+		container.translateZ(d / 1.5);
 		return container;
 	}
 
@@ -299,9 +301,9 @@ export class Freezer extends NestedContainer {
 			fontMesh.translateY(0.28);
 			fontMesh.translateZ(fontHeight / 2);
 			container.add(fontMesh);
-			container.translateX(w * 0.74);
-			container.translateY(h * 0.95);
-			container.translateZ(d + fontHeight / 2);
+			container.translateX(-w * 0.22);
+			container.translateY(h * 0.92);
+			container.translateZ(this.size.dooThinkness + fontHeight / 2);
 			this.door.add(container);
 			mainScene.render();
 		});
@@ -328,6 +330,8 @@ export class Freezer extends NestedContainer {
 		});
 		this._opening = open;
 	}
+
+	readonly hiddenChildrenAfterClose: boolean = true;
 
 	get boxSize() {
 		return { width: this.size.width, height: this.size.height, depth: this.size.depth };
@@ -386,4 +390,6 @@ export class Freezer extends NestedContainer {
 		rack.addChildNodeAnyWhere();
 		return rack;
 	}
+
+	// TODO 冰箱界面优化：加一个子模型渲染函数，返回 promise，只在打开冰箱时渲染子模型
 }

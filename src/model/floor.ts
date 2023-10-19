@@ -8,7 +8,7 @@ export class Floor extends ModelContainer {
 	constructor(width: number, height: number) {
 		super("floor");
 		this.brickWidth = width / 18;
-		this.brickHeight = this.brickWidth;
+		this.brickHeight = height / 12;
 		this.thickness = pipeSize.pipeRadius / 2;
 		this.width = width;
 		this.height = height;
@@ -31,7 +31,7 @@ export class Floor extends ModelContainer {
 		const borderMeshOption = new RectMeshOption(w + borderWidth * 2, h + borderWidth * 2, d);
 		const hole = Tools.drawRect(new Path(), { x: borderWidth, y: borderWidth }, w, h);
 		borderMeshOption.holes.push(hole);
-		borderMeshOption.material = matteMaterial(this.floorColor);
+		borderMeshOption.material = matteMaterial("#3e3e3e");
 		const borderMesh = Tools.rectMesh(borderMeshOption);
 		const brickPanelOption = new RectMeshOption(w, h, d);
 		brickPanelOption.material = this.floorPanelMaterial;

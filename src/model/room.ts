@@ -1,10 +1,16 @@
 import { globalPanel } from "../html/single_panel";
 import { Position3, mainScene } from "../scene";
 import { RoomSize } from "../store/size";
+import { randomIn, randomPositions } from "../utils";
+import { deg2rad } from "../utils/tools";
 import { Floor } from "./floor";
 import { Freezer } from "./freezer";
 import { ModelContainer } from "./model_container";
-import { FocusPosition, NestedContainer } from "./nested_container";
+import { FocusPosition, InsertPosition, NestedContainer } from "./nested_container";
+import { PipeModel } from "./pipe";
+import { Rack } from "./rack";
+import { SubRack } from "./sub_rack";
+import { Wall } from "./wall";
 
 export class Room extends NestedContainer {
 	constructor(roomSize?: RoomSize) {
@@ -17,13 +23,49 @@ export class Room extends NestedContainer {
 
 	readonly rows: number;
 	readonly cols: number;
+	readonly hiddenChildrenAfterClose: boolean = false;
 	size: RoomSize;
 
 	get selected() {
 		return true;
 	}
 
+	addWall() {
+		const doorWidth = 24;
+		const { width: w, height: h } = this.size;
+		const top = new Wall({ width: w, doorWidth });
+		top.translateX(-w / 2);
+		top.translateZ(-h / 2);
+		const bottom = new Wall({ width: w, doorWidth, materialType: "glass" });
+		bottom.translateX(-w / 2);
+		bottom.translateZ(h / 2);
+		const left = new Wall({ width: h });
+		left.translateX(-w / 2);
+		left.translateZ(h / 2);
+		left.rotateY(deg2rad(90));
+
+		const right = new Wall({ width: h, materialType: "glass" });
+		right.translateX(w / 2);
+		right.translateZ(h / 2);
+		right.rotateY(deg2rad(90));
+
+		const leftMid = new Wall({ width: h, doorWidth, doorOffset: h * 0.7, materialType: "glass" });
+		leftMid.translateX(-doorWidth);
+		leftMid.translateZ(h / 2);
+		leftMid.rotateY(deg2rad(90));
+
+		const rightMid = new Wall({ width: h, doorWidth });
+		rightMid.translateX(doorWidth);
+		rightMid.translateZ(h / 2);
+		rightMid.rotateY(deg2rad(90));
+
+		const container = new ModelContainer("walls");
+		container.add(top, bottom, left, right, leftMid, rightMid);
+		this.add(container);
+	}
+
 	render() {
+		this.addWall();
 		this.add(new Floor(this.size.width, this.size.height));
 	}
 
@@ -46,7 +88,13 @@ export class Room extends NestedContainer {
 				{ label: "列数", value: `${this.cols} 列` },
 			],
 			buttonGroup: [
-				{ label: "添加", onclick: () => this.addChildNodeAnyWhere() },
+				{
+					label: "随机数据",
+					onclick: () => {
+						if (this.added) return;
+						this.addMockData();
+					},
+				},
 				{ label: "全览", onclick: () => mainScene.resetCamera() },
 			],
 		});
@@ -65,7 +113,7 @@ export class Room extends NestedContainer {
 			this.getChildNodes().forEach((c) => {
 				if (c !== childNode) c.visible = false;
 			});
-			childNode.focus({ multipleX: 0.5, multipleY: 0.5, multipleZ: 2.5, cameraPosition: FocusPosition.left_45 });
+			childNode.focus({ multipleX: 0.4, multipleY: 0.5, multipleZ: 2.5, cameraPosition: FocusPosition.left_45 });
 		} else {
 			this.getChildNodes().forEach((c) => {
 				if (c !== childNode) c.visible = true;
@@ -77,5 +125,34 @@ export class Room extends NestedContainer {
 
 	get boxSize(): { width: number; height: number; depth: number } {
 		return { width: this.size.width, height: this.size.depth, depth: this.size.height };
+	}
+
+	private added = false;
+	// 添加测试数据
+	addMockData() {
+		this.added = true;
+		this.getChildNodes().forEach((child) => child.destroy());
+		this.showOperationPanel();
+		const freezerPositions = randomPositions(this.rows, this.cols, 11, [3, 4], [3]);
+		freezerPositions.forEach((p) => {
+			const f = this.createChildNode();
+			if (!f) return;
+			const rackPositions = randomPositions(f.rows, f.cols, randomIn(3, 7));
+			rackPositions.forEach((p) => {
+				const rack = new Rack();
+				const subRackPositions = randomPositions(rack.rows, rack.cols, 2);
+				subRackPositions.forEach((p) => {
+					const subRack = new SubRack();
+					const pipePositions = randomPositions(subRack.rows, subRack.cols, randomIn(2, 16));
+					pipePositions.forEach((p) => {
+						subRack.addChildNode(new PipeModel(), p);
+					});
+					rack.addChildNode(subRack, p);
+				});
+				f.addChildNode(rack, p);
+			});
+			this.addChildNode(f, p);
+		});
+		mainScene.render();
 	}
 }

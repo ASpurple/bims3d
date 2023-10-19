@@ -65,6 +65,7 @@ export abstract class NestedContainer extends ModelContainer {
 
 	abstract readonly rows: number; // 当前节点的容量 - 最大行数
 	abstract readonly cols: number; // 当前节点的容量 - 最大列数
+	abstract readonly hiddenChildrenAfterClose: boolean; // 非 focus 状态下隐藏子元素（性能优化）
 
 	// 根据子节点的 innsertPosition 计算子节点的偏移（translate）
 	abstract getDefaultChildNodeTranslate(childNode: NestedContainer): Position3;
@@ -85,34 +86,46 @@ export abstract class NestedContainer extends ModelContainer {
 	abstract get boxSize(): { width: number; height: number; depth: number };
 
 	// 选中子节点
-	selectChildNode = (node: NestedContainer) => {
+	private selectChildNode = (node: NestedContainer) => {
 		if (node.selected) return;
 		this._activeChildNode = node;
 	};
 
 	// 关闭子节点 (会递归关闭所有 focus 的子节点)
-	closeChildNode = () => {
+	private closeChildNode = () => {
 		if (!this._activeChildNode) return;
 		const node = this._activeChildNode;
 		this._activeChildNode = null;
 		if (node.activeChildNode) node.activeChildNode.close();
 	};
 
+	private hiddenTimer: any = null;
+
 	// 选中当前节点
-	select() {
+	select = () => {
 		if (!this.parentNode) return;
+		if (this.hiddenTimer) clearTimeout(this.hiddenTimer);
+		if (this.hiddenChildrenAfterClose) {
+			this.childNodes.forEach((c) => (c.visible = true));
+		}
 		this.parentNode.selectChildNode(this);
 		this.parentNode.childNodeFocusSwitchingAnimate(this, true);
 		this.showOperationPanel();
-	}
+	};
 
 	// 关闭当前节点
-	close() {
+	close = () => {
 		if (!this.parentNode || !this.selected) return;
 		this.parentNode.closeChildNode();
 		this.parentNode.showOperationPanel();
 		this.parentNode.childNodeFocusSwitchingAnimate(this, false);
-	}
+		if (this.hiddenChildrenAfterClose) {
+			this.hiddenTimer = setTimeout(() => {
+				this.childNodes.forEach((c) => (c.visible = false));
+				clearTimeout(this.hiddenTimer);
+			}, 400);
+		}
+	};
 
 	// 查找最近的 NestedContainer
 	findNestedContainer(obj: Object3D): NestedContainer | null {
@@ -186,6 +199,7 @@ export abstract class NestedContainer extends ModelContainer {
 		node._parentNode = this;
 		this.add(node);
 		this.childNodes.push(node);
+		if (this.hiddenChildrenAfterClose && !this.selected) requestAnimationFrame(() => (node.visible = false));
 		return true;
 	}
 
@@ -225,7 +239,7 @@ export abstract class NestedContainer extends ModelContainer {
 	// 销毁当前节点	会自动解绑上下游节点，并删除当前节点元素及所有子元素的全部事件绑定
 	destroy() {
 		if (this.parentNode) {
-			this.parentNode.closeChildNode();
+			this.close();
 			this.parentNode.childNodes = this.parentNode.childNodes.filter((item) => item.uuid !== this.uuid);
 		}
 		if (!this.parent) return;

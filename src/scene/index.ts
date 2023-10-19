@@ -66,7 +66,7 @@ class DefaultScene {
 	private mouse = new Vector2();
 	private controlor: OrbitControls | null = null;
 	private cameraLookAt = { x: 0, y: 0, z: 0 };
-	private cameraPosition0 = { x: 0, y: 220, z: 300 }; // 相机初始位置
+	private cameraPosition0 = { x: 124, y: 400, z: 285 }; // 相机初始位置
 	private lastMouseDown = 0;
 	private listeners: Listener[] = [];
 	private listenerModels: ModelContainer[] = [];
