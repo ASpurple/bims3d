@@ -22,7 +22,7 @@ export class Rack extends NestedContainer {
 
 	rows: number;
 	cols: number;
-	readonly hiddenChildrenAfterClose: boolean = false;
+	readonly isClosedModel: boolean = false;
 
 	width: number = 0;
 	height: number = 0;

@@ -1,3 +1,4 @@
+import { loading } from "../html/loading";
 import { globalPanel } from "../html/single_panel";
 import { Position3, mainScene } from "../scene";
 import { RoomSize } from "../store/size";
@@ -23,7 +24,7 @@ export class Room extends NestedContainer {
 
 	readonly rows: number;
 	readonly cols: number;
-	readonly hiddenChildrenAfterClose: boolean = false;
+	readonly isClosedModel: boolean = false;
 	size: RoomSize;
 
 	get selected() {
@@ -69,6 +70,12 @@ export class Room extends NestedContainer {
 		this.add(new Floor(this.size.width, this.size.height));
 	}
 
+	// 重写 onChildNodeClick 方法
+	protected onChildNodeClick(target: ModelContainer) {
+		if (this.activeChildNode?.selected) return;
+		super.onChildNodeClick(target);
+	}
+
 	getDefaultChildNodeTranslate(childNode: NestedContainer): Position3 {
 		const { width, height, rowSpacing, colSpacing } = this.size;
 		const { row, col } = childNode.innsertPosition;
@@ -111,12 +118,12 @@ export class Room extends NestedContainer {
 	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
 		if (focus) {
 			this.getChildNodes().forEach((c) => {
-				if (c !== childNode) c.visible = false;
+				if (c !== childNode) c.hidden();
 			});
 			childNode.focus({ multipleX: 0.4, multipleY: 0.5, multipleZ: 2.5, cameraPosition: FocusPosition.left_45 });
 		} else {
 			this.getChildNodes().forEach((c) => {
-				if (c !== childNode) c.visible = true;
+				if (c !== childNode) c.show();
 			});
 			mainScene.resetCamera();
 		}
@@ -130,29 +137,33 @@ export class Room extends NestedContainer {
 	private added = false;
 	// 添加测试数据
 	addMockData() {
-		this.added = true;
-		this.getChildNodes().forEach((child) => child.destroy());
-		this.showOperationPanel();
-		const freezerPositions = randomPositions(this.rows, this.cols, 11, [3, 4], [3]);
-		freezerPositions.forEach((p) => {
-			const f = this.createChildNode();
-			if (!f) return;
-			const rackPositions = randomPositions(f.rows, f.cols, randomIn(3, 7));
-			rackPositions.forEach((p) => {
-				const rack = new Rack();
-				const subRackPositions = randomPositions(rack.rows, rack.cols, 2);
-				subRackPositions.forEach((p) => {
-					const subRack = new SubRack();
-					const pipePositions = randomPositions(subRack.rows, subRack.cols, randomIn(2, 16));
-					pipePositions.forEach((p) => {
-						subRack.addChildNode(new PipeModel(), p);
+		loading();
+		setTimeout(() => {
+			this.added = true;
+			this.getChildNodes().forEach((child) => child.destroy());
+			this.showOperationPanel();
+			const freezerPositions = randomPositions(this.rows, this.cols, 15, [3, 4], [3]);
+			freezerPositions.forEach((p) => {
+				const f = this.createChildNode();
+				if (!f) return;
+				const rackPositions = randomPositions(f.rows, f.cols, randomIn(3, 7));
+				rackPositions.forEach((p) => {
+					const rack = new Rack();
+					const subRackPositions = randomPositions(rack.rows, rack.cols, 2);
+					subRackPositions.forEach((p) => {
+						const subRack = new SubRack();
+						const pipePositions = randomPositions(subRack.rows, subRack.cols, randomIn(2, 16));
+						pipePositions.forEach((p) => {
+							subRack.addChildNode(new PipeModel(), p);
+						});
+						rack.addChildNode(subRack, p);
 					});
-					rack.addChildNode(subRack, p);
+					f.addChildNode(rack, p);
 				});
-				f.addChildNode(rack, p);
+				this.addChildNode(f, p);
 			});
-			this.addChildNode(f, p);
-		});
-		mainScene.render();
+			mainScene.render();
+			setTimeout(() => loading(false), 500);
+		}, 100);
 	}
 }

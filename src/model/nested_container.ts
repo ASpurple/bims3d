@@ -1,4 +1,4 @@
-import { Object3D, Vector3 } from "three";
+import { Object3D, Object3DEventMap, Vector3 } from "three";
 import { ModelContainer } from "./model_container";
 import { Position3, mainScene } from "../scene";
 
@@ -58,14 +58,13 @@ export abstract class NestedContainer extends ModelContainer {
 
 	// 当前节点是否处于选中状态
 	get selected(): boolean {
-		if (!this._parentNode || !this._parentNode.isModelContainer) return true;
-		if (!this._parentNode._activeChildNode) return false;
+		if (!this._parentNode || !this._parentNode.isModelContainer || !this._parentNode._activeChildNode) return false;
 		return this._parentNode._activeChildNode.uuid === this.uuid;
 	}
 
 	abstract readonly rows: number; // 当前节点的容量 - 最大行数
 	abstract readonly cols: number; // 当前节点的容量 - 最大列数
-	abstract readonly hiddenChildrenAfterClose: boolean; // 非 focus 状态下隐藏子元素（性能优化）
+	abstract readonly isClosedModel: boolean; // 非 focus 状态下隐藏子元素（性能优化）
 
 	// 根据子节点的 innsertPosition 计算子节点的偏移（translate）
 	abstract getDefaultChildNodeTranslate(childNode: NestedContainer): Position3;
@@ -105,8 +104,9 @@ export abstract class NestedContainer extends ModelContainer {
 	select = () => {
 		if (!this.parentNode) return;
 		if (this.hiddenTimer) clearTimeout(this.hiddenTimer);
-		if (this.hiddenChildrenAfterClose) {
-			this.childNodes.forEach((c) => (c.visible = true));
+		if (this.isClosedModel) {
+			this.childNodes.forEach((c) => c.show());
+			mainScene.render();
 		}
 		this.parentNode.selectChildNode(this);
 		this.parentNode.childNodeFocusSwitchingAnimate(this, true);
@@ -119,9 +119,9 @@ export abstract class NestedContainer extends ModelContainer {
 		this.parentNode.closeChildNode();
 		this.parentNode.showOperationPanel();
 		this.parentNode.childNodeFocusSwitchingAnimate(this, false);
-		if (this.hiddenChildrenAfterClose) {
+		if (this.isClosedModel) {
 			this.hiddenTimer = setTimeout(() => {
-				this.childNodes.forEach((c) => (c.visible = false));
+				this.childNodes.forEach((c) => c.hidden());
 				clearTimeout(this.hiddenTimer);
 			}, 400);
 		}
@@ -135,7 +135,7 @@ export abstract class NestedContainer extends ModelContainer {
 	}
 
 	// 子节点的点击事件处理器
-	private onChildNodeClick = (target: ModelContainer) => {
+	protected onChildNodeClick(target: ModelContainer) {
 		// 父节点非选中状态时，将点击事件传导给父级节点
 		if (!this.selected) {
 			if (this.parentNode && this.eventRegion) this.parentNode.onChildNodeClick(this.eventRegion);
@@ -151,13 +151,13 @@ export abstract class NestedContainer extends ModelContainer {
 		} else {
 			node.select();
 		}
-	};
+	}
 
 	// 子节点绑定点击事件
 	bindClickForChildNode(childNode: NestedContainer) {
 		const region = childNode.eventRegion;
 		if (!region) return;
-		mainScene.addEventListener(region, this.onChildNodeClick);
+		mainScene.addEventListener(region, (target: ModelContainer) => this.onChildNodeClick(target));
 	}
 
 	// 解除当前节点的事件绑定
@@ -197,9 +197,12 @@ export abstract class NestedContainer extends ModelContainer {
 		node.translateZ(z);
 		this.bindClickForChildNode(node);
 		node._parentNode = this;
-		this.add(node);
 		this.childNodes.push(node);
-		if (this.hiddenChildrenAfterClose && !this.selected) requestAnimationFrame(() => (node.visible = false));
+		if (this.isClosedModel && !this.selected) {
+			node.hidden();
+		} else {
+			node.show();
+		}
 		return true;
 	}
 
@@ -245,6 +248,23 @@ export abstract class NestedContainer extends ModelContainer {
 		if (!this.parent) return;
 		mainScene.removeEventListener(this);
 		this.parent.remove(this);
+	}
+
+	private _setVisible(obj: Object3D, value: boolean) {
+		obj.visible = value;
+		if (obj.children) {
+			obj.children.forEach((c) => this._setVisible(c, value));
+		}
+	}
+
+	hidden() {
+		this._setVisible(this, false);
+		this.parentNode?.remove(this);
+	}
+
+	show() {
+		this._setVisible(this, true);
+		this.parentNode?.add(this);
 	}
 
 	// 视角聚焦指定模型	(默认模型的 左下内 点为源点)

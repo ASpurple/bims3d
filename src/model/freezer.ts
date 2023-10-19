@@ -42,6 +42,7 @@ export class Freezer extends NestedContainer {
 
 	readonly rows: number;
 	readonly cols: number;
+	readonly isClosedModel: boolean = true;
 
 	size: FreezerSize;
 

@@ -24,7 +24,7 @@ export class SubRack extends NestedContainer {
 
 	rows = 0; // 冻存管行数
 	cols = 0; // 冻存管列数
-	readonly hiddenChildrenAfterClose: boolean = false;
+	readonly isClosedModel: boolean = false;
 
 	rowSpace = 0; // 行间隔
 	colSpace = 0; // 列间隔

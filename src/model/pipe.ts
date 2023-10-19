@@ -27,7 +27,7 @@ export class PipeModel extends NestedContainer {
 
 	rows = 0;
 	cols = 0;
-	readonly hiddenChildrenAfterClose: boolean = false;
+	readonly isClosedModel: boolean = false;
 
 	lidBlackBottom() {
 		const r = this.radius;
