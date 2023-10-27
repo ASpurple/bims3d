@@ -132,7 +132,7 @@ class DefaultScene {
 		this.createCamera();
 		this.createLight();
 		this.scene.add(...this.lights);
-		this.createHelper();
+		// this.createHelper();
 		this.addOrbitControl();
 		this.onCanvasClick();
 	}

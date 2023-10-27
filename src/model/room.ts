@@ -1,9 +1,10 @@
+import { MeshBasicMaterial } from "three";
 import { loading } from "../html/loading";
 import { globalPanel } from "../html/single_panel";
 import { Position3, mainScene } from "../scene";
 import { RoomSize } from "../store/size";
 import { randomIn, randomPositions } from "../utils";
-import { deg2rad } from "../utils/tools";
+import { Tools, deg2rad } from "../utils/tools";
 import { Floor } from "./floor";
 import { Freezer } from "./freezer";
 import { ModelContainer } from "./model_container";
@@ -34,7 +35,7 @@ export class Room extends NestedContainer {
 	addWall() {
 		const doorWidth = 24;
 		const { width: w, height: h } = this.size;
-		const top = new Wall({ width: w, doorWidth });
+		const top = new Wall({ width: w });
 		top.translateX(-w / 2);
 		top.translateZ(-h / 2);
 		const bottom = new Wall({ width: w, doorWidth, materialType: "glass" });
@@ -65,8 +66,21 @@ export class Room extends NestedContainer {
 		this.add(container);
 	}
 
+	async addHouseNumber(num = "A301") {
+		const material = new MeshBasicMaterial({
+			color: "#FFFFFF",
+		});
+		const mesh = await Tools.textMesh(num, { size: 4 }, material);
+		mesh.translateX(-4.5);
+		mesh.translateY(50 * 0.8 + 3.5);
+		mesh.translateZ(this.size.height / 2 + 1);
+		this.add(mesh);
+		mainScene.render();
+	}
+
 	render() {
 		this.addWall();
+		this.addHouseNumber();
 		this.add(new Floor(this.size.width, this.size.height));
 	}
 
