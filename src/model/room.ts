@@ -142,7 +142,7 @@ export class Room extends NestedContainer {
 			this.added = true;
 			this.getChildNodes().forEach((child) => child.destroy());
 			this.showOperationPanel();
-			const freezerPositions = randomPositions(this.rows, this.cols, 15, [3, 4], [3]);
+			const freezerPositions = randomPositions(this.rows, this.cols, 7, [3, 4], [3]);
 			freezerPositions.forEach((p) => {
 				const f = this.createChildNode();
 				if (!f) return;
