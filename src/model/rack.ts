@@ -6,7 +6,7 @@ import { SLIVER } from "../utils/material";
 import { RackSize, SubRackSize } from "../store/size";
 import { SubRack } from "./sub_rack";
 import { globalPanel } from "../html/single_panel";
-import { FocusPosition, NestedContainer } from "./nested_container";
+import { FocusMode, FocusPosition, NestedContainer } from "./nested_container";
 
 export class Rack extends NestedContainer {
 	constructor(option?: { rows?: number; cols?: number; childRows?: number; childCols?: number }) {
@@ -146,22 +146,29 @@ export class Rack extends NestedContainer {
 	}
 
 	getDefaultChildNodeTranslate(childNode: NestedContainer): Position3 {
-		const { row } = childNode.innsertPosition;
+		const { row } = childNode.insertedPosition;
 		const x = this.thickness;
 		const y = row * (this.height / 2 + this.eh + this.thickness);
 		const z = 0;
 		return { x, y, z };
 	}
 
-	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
-		if (focus) childNode.focus({ multipleY: 3, multipleZ: 1.5, cameraPosition: FocusPosition.left_45 });
+	focusBlurCameraAnimation(mode: FocusMode): void {
+		if (mode === FocusMode.focus) {
+			this.focus({ multipleX: 2, multipleY: 1, multipleZ: 1.6, cameraPosition: FocusPosition.left_45 });
+		} else {
+			this.focus({ multipleY: 0.4, multipleZ: 2 });
+		}
+	}
+
+	focusBlurAnimation(mode: FocusMode) {
+		if (!this.parentNode) return;
 		const s0 = { d: 0 };
-		const s1 = { d: this.depth + 1 };
-		const from = focus ? s0 : s1;
-		const to = focus ? s1 : s0;
+		const s1 = { d: this.boxSize.depth * 1.5 };
+		const from = mode === FocusMode.focus ? s0 : s1;
+		const to = mode === FocusMode.focus ? s1 : s0;
 		Tools.animate(from, to, ({ d }) => {
-			childNode.position.setZ(d);
-			mainScene.render();
+			this.position.setZ(d);
 		});
 	}
 

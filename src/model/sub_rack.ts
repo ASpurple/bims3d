@@ -1,10 +1,10 @@
 import { CylinderGeometry, Mesh, Path, TorusGeometry } from "three";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
 import { metalnessMaterial } from "../utils/material";
-import { SubRackSize, pipeSize } from "../store/size";
+import { SubRackSize } from "../store/size";
 import { PipeModel } from "./pipe";
 import { globalPanel } from "../html/single_panel";
-import { NestedContainer } from "./nested_container";
+import { FocusMode, FocusPosition, NestedContainer } from "./nested_container";
 import { ModelContainer } from "./model_container";
 import { mainScene } from "../scene";
 
@@ -230,7 +230,7 @@ export class SubRack extends NestedContainer {
 
 	// 根据行和列计算冻存管偏移位置
 	getDefaultChildNodeTranslate(childNode: NestedContainer) {
-		const { row, col } = childNode.innsertPosition;
+		const { row, col } = childNode.insertedPosition;
 		const x = this.colSpace + this.holeRadius + col * (this.holeRadius * 2 + this.colSpace);
 		const z = this.rowSpace + this.holeRadius + row * (this.holeRadius * 2 + this.rowSpace);
 		return { x, y: this.thickness, z };
@@ -256,13 +256,19 @@ export class SubRack extends NestedContainer {
 		});
 	}
 
-	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
-		const s0 = { y: this.thickness };
-		const s1 = { y: this.thickness + pipeSize.pipeHeight };
+	focusBlurCameraAnimation(mode: FocusMode): void {
+		const focus = mode === FocusMode.focus;
+		if (focus) this.focus({ multipleY: 3, multipleZ: 1.5, cameraPosition: FocusPosition.left_45 });
+	}
+
+	focusBlurAnimation(mode: FocusMode) {
+		const focus = mode === FocusMode.focus;
+		const s0 = { d: 0 };
+		const s1 = { d: this.depth + 1 };
 		const from = focus ? s0 : s1;
 		const to = focus ? s1 : s0;
-		Tools.animate(from, to, ({ y }) => {
-			childNode.position.setY(y);
+		Tools.animate(from, to, ({ d }) => {
+			this.position.setZ(d);
 			mainScene.render();
 		});
 	}

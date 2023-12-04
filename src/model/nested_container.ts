@@ -1,11 +1,17 @@
-import { Object3D, Object3DEventMap, Vector3 } from "three";
+import { Object3D, Vector3 } from "three";
 import { ModelContainer } from "./model_container";
 import { Position3, mainScene } from "../scene";
+import { RENDER_DELAY } from "../store/constant";
 
 export enum FocusPosition {
 	left_45,
 	right_45,
 	ahead,
+}
+
+export enum FocusMode {
+	focus,
+	blur,
 }
 
 // 嵌套后的插入位置必须分解成二维的
@@ -15,7 +21,7 @@ export interface InsertPosition {
 }
 
 export interface FocusOptions {
-	multiple?: number;
+	multiple?: number; // 乘以 multiple 倍
 	cameraPosition?: FocusPosition;
 	offsetX?: number;
 	offsetY?: number;
@@ -39,34 +45,16 @@ export abstract class NestedContainer extends ModelContainer {
 	}
 
 	readonly isNestedContainer = true;
-	private _innsertPosition: InsertPosition = { row: 0, col: 0 }; // 插入父级模型节点时的位置，0 base
+	private _insertedPosition: InsertPosition = { row: 0, col: 0 }; // 插入父级模型节点时的位置，0 base
 	private _parentNode: NestedContainer | null = null;
-	private _activeChildNode: NestedContainer | null = null; // 被选中的子节点
-	private childNodes: NestedContainer[] = [];
-
-	get innsertPosition() {
-		return this._innsertPosition;
-	}
-
-	get parentNode() {
-		return this._parentNode;
-	}
-
-	get activeChildNode() {
-		return this._activeChildNode;
-	}
-
-	// 当前节点是否处于选中状态
-	get selected(): boolean {
-		if (!this._parentNode || !this._parentNode.isModelContainer || !this._parentNode._activeChildNode) return false;
-		return this._parentNode._activeChildNode.uuid === this.uuid;
-	}
+	private _isActive: boolean = false; // 是否处于被选中状态
+	private _childNodes: NestedContainer[] = [];
 
 	abstract readonly rows: number; // 当前节点的容量 - 最大行数
 	abstract readonly cols: number; // 当前节点的容量 - 最大列数
 	abstract readonly isClosedModel: boolean; // 非 focus 状态下隐藏子元素（性能优化）
 
-	// 根据子节点的 innsertPosition 计算子节点的偏移（translate）
+	// 根据子节点的 insertedPosition 计算子节点的偏移（translate）
 	abstract getDefaultChildNodeTranslate(childNode: NestedContainer): Position3;
 
 	// 显示当前模型的操作面板 （当前节点被选中时调用此方法）
@@ -75,158 +63,184 @@ export abstract class NestedContainer extends ModelContainer {
 	// 获取点击事件触发位置
 	abstract get eventRegion(): ModelContainer | null;
 
-	// 创建一个新的子节点
-	abstract createChildNode(): NestedContainer | undefined;
+	// 定义当前节点的焦点切换动画
+	abstract focusBlurAnimation(mode: FocusMode): void;
 
-	// 定义子节点的焦点切换动画
-	abstract childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void;
+	// 定义当前节点的焦点相机切换动画
+	abstract focusBlurCameraAnimation(mode: FocusMode): void;
+
+	// 创建子元素
+	abstract createChildNode(): NestedContainer | undefined;
 
 	// 当前模型的盒模型大小
 	abstract get boxSize(): { width: number; height: number; depth: number };
 
-	// 选中子节点
-	private selectChildNode = (node: NestedContainer) => {
-		if (node.selected) return;
-		this._activeChildNode = node;
-	};
+	get insertedPosition() {
+		return this._insertedPosition;
+	}
 
-	// 关闭子节点 (会递归关闭所有 focus 的子节点)
-	private closeChildNode = () => {
-		if (!this._activeChildNode) return;
-		const node = this._activeChildNode;
-		this._activeChildNode = null;
-		if (node.activeChildNode) node.activeChildNode.close();
-	};
+	get parentNode() {
+		return this._parentNode;
+	}
 
-	private hiddenTimer: any = null;
+	get childNodes() {
+		return this._childNodes;
+	}
 
-	// 选中当前节点
-	select = () => {
-		if (!this.parentNode) return;
-		if (this.hiddenTimer) clearTimeout(this.hiddenTimer);
-		if (this.isClosedModel) {
-			this.childNodes.forEach((c) => c.show());
+	get isActive() {
+		return this._isActive;
+	}
+
+	private onFocusBlur(mode: FocusMode, resetCamera = true) {
+		if (resetCamera) this.focusBlurCameraAnimation(mode);
+		this.focusBlurAnimation(mode);
+	}
+
+	setActive(val: boolean, resetCamera = true) {
+		const parentNode = this.parentNode;
+		// 没有父节点说明当前节点是顶级节点
+		if (!parentNode) {
+			this.onFocusBlur(val ? FocusMode.focus : FocusMode.blur, resetCamera);
+			this._isActive = val;
+			return;
+		}
+		if (!val) {
+			if (!this._isActive) return;
+			this.onFocusBlur(FocusMode.blur, resetCamera);
+			this._isActive = false;
+			this.childNodes.forEach((c) => {
+				c.setActive(false, false);
+				if (c.parentNode!.isClosedModel) c.hidden();
+			});
+			parentNode.showOperationPanel();
 			mainScene.render();
+			return;
 		}
-		this.parentNode.selectChildNode(this);
-		this.parentNode.childNodeFocusSwitchingAnimate(this, true);
+		const nodes = parentNode.childNodes;
+		nodes.forEach((n) => {
+			n.setActive(false);
+		});
+		this.onFocusBlur(FocusMode.focus, resetCamera);
+		this.childNodes.forEach((c) => c.show());
+		this._isActive = true;
 		this.showOperationPanel();
-	};
+		mainScene.render();
+	}
 
-	// 关闭当前节点
-	close = () => {
-		if (!this.parentNode || !this.selected) return;
-		this.parentNode.closeChildNode();
-		this.parentNode.showOperationPanel();
-		this.parentNode.childNodeFocusSwitchingAnimate(this, false);
-		if (this.isClosedModel) {
-			this.hiddenTimer = setTimeout(() => {
-				this.childNodes.forEach((c) => c.hidden());
-				clearTimeout(this.hiddenTimer);
-			}, 400);
+	// 将节点插入到当前节点的 childNodes 列表，返回是否插入成功
+	private addToChildNodes(node: NestedContainer): boolean {
+		for (let i = 0; i < this._childNodes.length; i++) {
+			const element = this._childNodes[i];
+			if (element.uuid === node.uuid) return false;
 		}
-	};
+		this._childNodes.push(node);
+		return true;
+	}
+
+	// 从当前节点的 childNodes 中删除指定节点
+	private deleteFromChildNodes(ids: string[]) {
+		this._childNodes = this._childNodes.filter((c) => !ids.includes(c.uuid));
+	}
+
+	// 指定插入位置上是否存在子节点
+	isFreePosition(position: InsertPosition) {
+		for (let i = 0; i < this.childNodes.length; i++) {
+			const element = this.childNodes[i];
+			const p0 = element.insertedPosition;
+			if (p0.row === position.row && p0.col === position.col) return false;
+		}
+		return true;
+	}
+
+	// 寻找空位置
+	findFreePosition(): InsertPosition | undefined {
+		for (let r = 0; r < this.rows; r++) {
+			for (let c = 0; c < this.cols; c++) {
+				const p = { row: r, col: c };
+				if (this.isFreePosition(p)) return p;
+			}
+		}
+		return undefined;
+	}
 
 	// 查找最近的 NestedContainer
-	findNestedContainer(obj: Object3D): NestedContainer | null {
+	private findNestedContainer(obj: Object3D): NestedContainer | null {
 		if ((obj as any).isNestedContainer) return obj as NestedContainer;
 		if (!obj.parent) return null;
 		return this.findNestedContainer(obj.parent);
 	}
 
-	// 子节点的点击事件处理器
-	protected onChildNodeClick(target: ModelContainer) {
+	// 点击事件处理器
+	protected onClick(target: ModelContainer) {
+		const parent = this.parentNode;
+		if (!parent) return;
 		// 父节点非选中状态时，将点击事件传导给父级节点
-		if (!this.selected) {
-			if (this.parentNode && this.eventRegion) this.parentNode.onChildNodeClick(this.eventRegion);
+		if (!parent.isActive) {
+			if (parent.eventRegion) parent.onClick(parent.eventRegion);
 			return;
 		}
 
 		const node = this.findNestedContainer(target);
 		if (!node) return;
 
-		if (this.activeChildNode && !node.selected) this.activeChildNode.close();
-		if (node.selected) {
-			node.close();
-		} else {
-			node.select();
-		}
+		node.setActive(!node.isActive);
 	}
 
-	// 子节点绑定点击事件
-	bindClickForChildNode(childNode: NestedContainer) {
-		const region = childNode.eventRegion;
+	// 绑定点击事件
+	private bindClick() {
+		const region = this.eventRegion;
 		if (!region) return;
-		mainScene.addEventListener(region, (target: ModelContainer) => this.onChildNodeClick(target));
+		mainScene.addEventListener(region, (target: ModelContainer) => this.onClick(target));
 	}
+
+	// 设置为初始位置
+	setDefaultPosition() {
+		if (!this.parentNode) return;
+		const offset = this.parentNode.getDefaultChildNodeTranslate(this);
+		const { x, y, z } = offset;
+		this.translateX(x);
+		this.translateY(y);
+		this.translateZ(z);
+	}
+
+	private _hiddenChildNodes = () => {
+		this.childNodes.forEach((c) => c.hidden());
+	};
+
+	timer: any = null;
+
+	private hiddenClosedModelChildNodes() {
+		if (!this.isClosedModel || this.isActive) return;
+		if (this.timer) clearTimeout(this.timer);
+		this.timer = setTimeout(this._hiddenChildNodes, RENDER_DELAY);
+	}
+
+	// 将当前节点插入到指定节点，返回是否插入成功
+	insertTo(parentNode: NestedContainer, position?: InsertPosition) {
+		position = position ?? parentNode.findFreePosition();
+		if (!position) return false;
+		this._insertedPosition = position;
+		const { row, col } = position;
+		if (row < 0 || col < 0 || row >= parentNode.rows || col >= parentNode.cols) return false;
+		if (!parentNode.addToChildNodes(this)) return false;
+		this._parentNode = parentNode;
+		this.setDefaultPosition();
+		this.bindClick();
+		this.show();
+		parentNode.hiddenClosedModelChildNodes();
+		return true;
+	}
+
+	// TODO 重新定义此方法
+	addChildNodeAnyWhere() {}
 
 	// 解除当前节点的事件绑定
 	removeEvents() {
 		mainScene.removeEventListener(this);
 	}
 
-	// 指定插入位置上是否存在子节点
-	isChildNodeExists(position: InsertPosition) {
-		for (let i = 0; i < this.childNodes.length; i++) {
-			const element = this.childNodes[i];
-			const p0 = element._innsertPosition;
-			if (p0.row === position.row && p0.col === position.col) return true;
-		}
-		return false;
-	}
-
-	// 获取所有子节点
-	getChildNodes() {
-		return this.childNodes;
-	}
-
-	setInsertPosition(insertPosition: InsertPosition) {
-		this._innsertPosition = insertPosition;
-	}
-
-	// 添加子节点
-	addChildNode(node: NestedContainer, insertPosition?: InsertPosition): boolean {
-		if (insertPosition) node.setInsertPosition(insertPosition);
-		const { row, col } = node._innsertPosition;
-		if (row < 0 || col < 0 || row >= this.rows || col >= this.cols) return false;
-		if (this.isChildNodeExists(node._innsertPosition)) return false;
-		const offset = this.getDefaultChildNodeTranslate(node);
-		const { x, y, z } = offset;
-		node.translateX(x);
-		node.translateY(y);
-		node.translateZ(z);
-		this.bindClickForChildNode(node);
-		node._parentNode = this;
-		this.childNodes.push(node);
-		if (this.isClosedModel && !this.selected) {
-			node.hidden();
-		} else {
-			node.show();
-		}
-		return true;
-	}
-
-	// 寻找空位置
-	findFreePosition(): InsertPosition | null {
-		for (let r = 0; r < this.rows; r++) {
-			for (let c = 0; c < this.cols; c++) {
-				const p = { row: r, col: c };
-				if (!this.isChildNodeExists(p)) return p;
-			}
-		}
-		return null;
-	}
-
-	// 在任意空位插入子节点
-	addChildNodeAnyWhere(node?: NestedContainer): boolean {
-		if (this.childNodes.length >= this.rows * this.cols) return false;
-		const free = this.findFreePosition();
-		if (!free) return false;
-		node = node ?? this.createChildNode();
-		if (!node) return false;
-		const ok = this.addChildNode(node, free);
-		mainScene.render();
-		return ok;
+	close() {
+		this.setActive(false);
 	}
 
 	// 删除当前节点，并显示父级节点的操作面板
@@ -243,28 +257,28 @@ export abstract class NestedContainer extends ModelContainer {
 	destroy() {
 		if (this.parentNode) {
 			this.close();
-			this.parentNode.childNodes = this.parentNode.childNodes.filter((item) => item.uuid !== this.uuid);
+			this.parentNode.deleteFromChildNodes([this.uuid]);
 		}
-		if (!this.parent) return;
 		mainScene.removeEventListener(this);
-		this.parent.remove(this);
+		if (this.parent) this.parent.remove(this);
 	}
 
-	private _setVisible(obj: Object3D, value: boolean) {
+	private _setVisible(value: boolean, obj: Object3D = this) {
 		obj.visible = value;
 		if (obj.children) {
-			obj.children.forEach((c) => this._setVisible(c, value));
+			obj.children.forEach((c) => this._setVisible(value, c));
 		}
 	}
 
 	hidden() {
-		this._setVisible(this, false);
-		this.parentNode?.remove(this);
+		this._setVisible(false);
+		this.parent?.remove(this);
 	}
 
 	show() {
-		this._setVisible(this, true);
-		this.parentNode?.add(this);
+		this._setVisible(true);
+		const parent = this.parent || this.parentNode;
+		parent?.add(this);
 	}
 
 	// 视角聚焦指定模型	(默认模型的 左下内 点为源点)

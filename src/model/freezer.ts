@@ -1,21 +1,8 @@
-import {
-	DoubleSide,
-	ExtrudeGeometry,
-	Matrix4,
-	Mesh,
-	MeshBasicMaterial,
-	MeshPhongMaterial,
-	MeshPhysicalMaterial,
-	Path,
-	Quaternion,
-	Shape,
-	Vector2,
-	Vector3,
-} from "three";
+import { Mesh, MeshBasicMaterial, MeshPhysicalMaterial, Path, Shape, Vector2 } from "three";
 import { ModelContainer } from "./model_container";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader";
-import { FocusPosition, NestedContainer } from "./nested_container";
+import { FocusMode, FocusPosition, NestedContainer } from "./nested_container";
 import { RectMeshOption, Tools, deg2rad } from "../utils/tools";
 import { Position3, mainScene } from "../scene";
 import { globalPanel } from "../html/single_panel";
@@ -319,19 +306,6 @@ export class Freezer extends NestedContainer {
 		this.addLog();
 	}
 
-	openCloseDoor(open?: boolean) {
-		if (open === undefined) open = !this._opening;
-		if (!this.parentNode) return;
-		const s0 = { rad: 0 };
-		const s1 = { rad: deg2rad(135) };
-		const from = open ? s0 : s1;
-		const to = open ? s1 : s0;
-		Tools.animate(from, to, (state) => {
-			this.door.rotation.y = state.rad;
-		});
-		this._opening = open;
-	}
-
 	readonly hiddenChildrenAfterClose: boolean = true;
 
 	get boxSize() {
@@ -340,13 +314,18 @@ export class Freezer extends NestedContainer {
 
 	// 根据子节点的 innsertPosition 计算子节点的偏移（translate）
 	getDefaultChildNodeTranslate(childNode: NestedContainer): Position3 {
-		const { row, col } = childNode.innsertPosition;
+		const { row, col } = childNode.insertedPosition;
 		const base = this.size.pedestalHeight + this.size.thinkness;
 		const rowStoreyHeight = this.size.rowStoreyHeight;
 		const x = this.size.thinkness + col * (this.size.colSpacing + childNode.boxSize.width);
 		const y = base + row * rowStoreyHeight;
 		const z = this.size.thinkness;
 		return { x, y, z };
+	}
+
+	protected onClick(target: ModelContainer): void {
+		if (this.isActive) return;
+		super.onClick(target);
 	}
 
 	// 显示当前模型的操作面板 （当前节点被选中时调用此方法）
@@ -370,19 +349,32 @@ export class Freezer extends NestedContainer {
 		return this;
 	}
 
-	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean) {
-		if (focus) {
-			childNode.focus({ multipleX: 2, multipleY: 1, multipleZ: 1.6, cameraPosition: FocusPosition.left_45 });
+	focusBlurCameraAnimation(mode: FocusMode): void {
+		if (!this.parentNode) return;
+		if (mode === FocusMode.focus) {
+			this.parentNode.childNodes.forEach((c) => {
+				if (c !== this) c.hidden();
+			});
+			this.focus({ multipleX: 0.4, multipleY: 0.5, multipleZ: 2.5, cameraPosition: FocusPosition.left_45 });
 		} else {
-			this.focus({ multipleY: 0.4, multipleZ: 2 });
+			this.parentNode.childNodes.forEach((c) => {
+				if (c !== this) c.show();
+			});
+			mainScene.resetCamera();
 		}
-		const s0 = { d: 0 };
-		const s1 = { d: this.size.depth * 1.5 };
-		const from = focus ? s0 : s1;
-		const to = focus ? s1 : s0;
-		Tools.animate(from, to, ({ d }) => {
-			childNode.position.setZ(d);
+	}
+
+	focusBlurAnimation(mode: FocusMode) {
+		if (!this.parentNode) return;
+		const open = mode === FocusMode.focus;
+		const s0 = { rad: 0 };
+		const s1 = { rad: deg2rad(135) };
+		const from = open ? s0 : s1;
+		const to = open ? s1 : s0;
+		Tools.animate(from, to, (state) => {
+			this.door.rotation.y = state.rad;
 		});
+		this._opening = open;
 	}
 
 	createChildNode() {

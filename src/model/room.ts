@@ -8,11 +8,12 @@ import { Tools, deg2rad } from "../utils/tools";
 import { Floor } from "./floor";
 import { Freezer } from "./freezer";
 import { ModelContainer } from "./model_container";
-import { FocusPosition, InsertPosition, NestedContainer } from "./nested_container";
+import { FocusMode, NestedContainer } from "./nested_container";
 import { PipeModel } from "./pipe";
 import { Rack } from "./rack";
 import { SubRack } from "./sub_rack";
 import { Wall } from "./wall";
+import { RENDER_DELAY } from "../store/constant";
 
 export class Room extends NestedContainer {
 	constructor(roomSize?: RoomSize) {
@@ -84,15 +85,9 @@ export class Room extends NestedContainer {
 		this.add(new Floor(this.size.width, this.size.height));
 	}
 
-	// 重写 onChildNodeClick 方法
-	protected onChildNodeClick(target: ModelContainer) {
-		if (this.activeChildNode?.selected) return;
-		super.onChildNodeClick(target);
-	}
-
 	getDefaultChildNodeTranslate(childNode: NestedContainer): Position3 {
 		const { width, height, rowSpacing, colSpacing } = this.size;
-		const { row, col } = childNode.innsertPosition;
+		const { row, col } = childNode.insertedPosition;
 		const baseX = -width / 2;
 		const baseZ = -height / 2;
 		const x = baseX + colSpacing + col * (childNode.boxSize.width + colSpacing);
@@ -129,19 +124,12 @@ export class Room extends NestedContainer {
 		return new Freezer();
 	}
 
-	childNodeFocusSwitchingAnimate(childNode: NestedContainer, focus: boolean): void {
-		if (focus) {
-			this.getChildNodes().forEach((c) => {
-				if (c !== childNode) c.hidden();
-			});
-			childNode.focus({ multipleX: 0.4, multipleY: 0.5, multipleZ: 2.5, cameraPosition: FocusPosition.left_45 });
-		} else {
-			this.getChildNodes().forEach((c) => {
-				if (c !== childNode) c.show();
-			});
-			mainScene.resetCamera();
-		}
-		(childNode as Freezer).openCloseDoor();
+	focusBlurCameraAnimation(mode: FocusMode): void {
+		console.log(`room camera animation ${mode}`);
+	}
+
+	focusBlurAnimation(mode: FocusMode): void {
+		console.log(`room animation ${mode}`);
 	}
 
 	get boxSize(): { width: number; height: number; depth: number } {
@@ -154,7 +142,7 @@ export class Room extends NestedContainer {
 		loading();
 		setTimeout(() => {
 			this.added = true;
-			this.getChildNodes().forEach((child) => child.destroy());
+			this.childNodes.forEach((child) => child.destroy());
 			this.showOperationPanel();
 			const freezerPositions = randomPositions(this.rows, this.cols, 12, [3, 4], [3]);
 			freezerPositions.forEach((p) => {
@@ -168,16 +156,16 @@ export class Room extends NestedContainer {
 						const subRack = new SubRack();
 						const pipePositions = randomPositions(subRack.rows, subRack.cols, randomIn(2, 16));
 						pipePositions.forEach((p) => {
-							subRack.addChildNode(new PipeModel(), p);
+							new PipeModel().insertTo(subRack, p);
 						});
-						rack.addChildNode(subRack, p);
+						subRack.insertTo(rack, p);
 					});
-					f.addChildNode(rack, p);
+					rack.insertTo(f, p);
 				});
-				this.addChildNode(f, p);
+				f.insertTo(this, p);
 			});
 			mainScene.render();
-			setTimeout(() => loading(false), 500);
+			setTimeout(() => loading(false), RENDER_DELAY);
 		}, 100);
 	}
 }

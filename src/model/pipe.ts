@@ -4,9 +4,9 @@ import { MeshLambertMaterial, MeshPhysicalMaterial } from "three";
 import { pipeSize } from "../store/size";
 import { Tools } from "../utils/tools";
 import { glassMaterial, metalnessMaterial } from "../utils/material";
-import { NestedContainer } from "./nested_container";
+import { FocusMode, NestedContainer } from "./nested_container";
 import { ModelContainer } from "./model_container";
-import { Position3 } from "../scene";
+import { Position3, mainScene } from "../scene";
 import { globalPanel } from "../html/single_panel";
 
 export class PipeModel extends NestedContainer {
@@ -87,8 +87,8 @@ export class PipeModel extends NestedContainer {
 
 	// 显示当前模型的操作面板 （当前节点被选中时调用此方法）
 	showOperationPanel(): void {
-		const row = this.innsertPosition.row + 1;
-		const col = this.innsertPosition.col + 1;
+		const row = this.insertedPosition.row + 1;
+		const col = this.insertedPosition.col + 1;
 		globalPanel.render({
 			title: "冻存架 / 内部冻存架 / 冻存管",
 			labelValuePairs: [
@@ -107,7 +107,21 @@ export class PipeModel extends NestedContainer {
 		return this.lid;
 	}
 
-	childNodeFocusSwitchingAnimate() {}
+	focusBlurCameraAnimation(mode: FocusMode): void {}
+
+	focusBlurAnimation(mode: FocusMode) {
+		if (!this.parentNode) return;
+		const focus = mode === FocusMode.focus;
+		const subRackThickness = 0.1;
+		const s0 = { y: subRackThickness };
+		const s1 = { y: subRackThickness + pipeSize.pipeHeight };
+		const from = focus ? s0 : s1;
+		const to = focus ? s1 : s0;
+		Tools.animate(from, to, ({ y }) => {
+			this.position.setY(y);
+			mainScene.render();
+		});
+	}
 
 	createChildNode() {
 		return undefined;
